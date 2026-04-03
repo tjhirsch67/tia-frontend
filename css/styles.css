@@ -444,3 +444,102 @@ tbody td {
 .required {
     color: #c0392b;
 }
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+.tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e8edf2;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background: none;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.tab-btn:hover { color: #2E74B5; }
+.tab-btn.active { color: #2E74B5; border-bottom-color: #2E74B5; }
+
+.tab-content { display: none !important; }
+.tab-content.active { display: block !important; }
+
+.tab-bar-inner {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.inner-tab-btn {
+    padding: 7px 16px;
+    border: 1px solid #ccd6e0;
+    background: #f4f7fa;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.inner-tab-btn.active {
+    background: #2E74B5;
+    color: #fff;
+    border-color: #2E74B5;
+}
+
+.inner-tab-content { display: none !important; }
+.inner-tab-content.active { display: block !important; }
+
+/* ── Drop Zone ────────────────────────────────────────────────────────────── */
+.drop-zone {
+    border: 2px dashed #ccd6e0;
+    border-radius: 8px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+    background: #f9fbfd;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: #2E74B5;
+    background: #eaf2fb;
+}
+
+.drop-zone-text {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.drop-zone-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+
+.drop-zone.has-file .drop-zone-text {
+    color: #2E74B5;
+    font-weight: 600;
+}
+
+/* ── Tab Description ──────────────────────────────────────────────────────── */
+.tab-desc {
+    color: #666;
+    font-size: 0.88rem;
+    margin-bottom: 14px;
+    line-height: 1.5;
+}

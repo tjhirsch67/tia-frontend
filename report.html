@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIA - Reports</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="form.html">TIA</a>
+        <div class="hamburger" id="hamburger">
+            <span></span><span></span><span></span>
+        </div>
+        <ul class="navbar-nav" id="mainNav">
+            <li><a href="form.html">Tech Install</a></li>
+            <li id="navReport"><a href="report.html" class="active">Reports</a></li>
+            <li id="navAdmin" class="hidden"><a href="admin.html">Admin</a></li>
+        </ul>
+        <div class="navbar-user">
+            <span id="navUsername"></span>
+            <button class="btn btn-secondary btn-sm" onclick="Auth.logout()">Sign Out</button>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <div class="page-title">Reports</div>
+
+        <!-- Last Export Info -->
+        <div class="card">
+            <div class="card-title">Last Export</div>
+            <div id="lastRunInfo" style="color:#555; font-size:0.92rem;">
+                Loading...
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card">
+            <div class="card-title">Export Filters</div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="startDate">Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="form-group">
+                    <label for="endDate">End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Service Types</label>
+                <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:6px;">
+                    <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" value="Install-New" class="svc-type" checked> Install-New
+                    </label>
+                    <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" value="Move" class="svc-type" checked> Move
+                    </label>
+                    <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" value="Hot Swap" class="svc-type" checked> Hot Swap
+                    </label>
+                    <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" value="Removal" class="svc-type" checked> Removal
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;">
+                    <input type="checkbox" id="unreportedOnly" style="width:auto;">
+                    <span><strong>Unreported Only</strong> — export only records that have not been previously exported</span>
+                </label>
+            </div>
+
+            <div id="reportError" class="error-message hidden"></div>
+
+            <button class="btn btn-primary" id="exportBtn">
+                &#x2B07; Export to CSV
+            </button>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/report.js"></script>
+</body>
+</html>

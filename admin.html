@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIA - Admin Panel</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="form.html">TIA</a>
+        <div class="hamburger" id="hamburger">
+            <span></span><span></span><span></span>
+        </div>
+        <ul class="navbar-nav" id="mainNav">
+            <li><a href="form.html">Tech Install</a></li>
+            <li><a href="report.html">Reports</a></li>
+            <li><a href="admin.html" class="active">Admin</a></li>
+        </ul>
+        <div class="navbar-user">
+            <span id="navUsername"></span>
+            <button class="btn btn-secondary btn-sm" onclick="Auth.logout()">Sign Out</button>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <div class="page-title">Admin Panel</div>
+
+        <!-- Tabs -->
+        <div class="tab-bar">
+            <button class="tab-btn active" data-tab="cmdb">CMDB</button>
+            <button class="tab-btn" data-tab="locations">Locations</button>
+            <button class="tab-btn" data-tab="records">Records</button>
+            <button class="tab-btn" data-tab="users">Users</button>
+        </div>
+
+        <!-- ── CMDB Tab ──────────────────────────────────────────────────── -->
+        <div id="tab-cmdb" class="tab-content active">
+            <div class="card">
+                <div class="card-title">CMDB Management</div>
+                <div class="tab-bar-inner">
+                    <button class="inner-tab-btn active" data-inner="cmdb-update">Update / Insert</button>
+                    <button class="inner-tab-btn" data-inner="cmdb-delete">Delete</button>
+                    <button class="inner-tab-btn" data-inner="cmdb-export">Export</button>
+                </div>
+
+                <div id="inner-cmdb-update" class="inner-tab-content active">
+                    <p class="tab-desc">Upload a CSV or Excel file to insert new devices or update existing ones. Matched by Serial number.</p>
+                    <a href="#" class="btn btn-secondary btn-sm" id="cmdbTemplateDl" style="margin-bottom:12px;">&#x2B07; Download Sample Template</a>
+                    <div class="drop-zone" id="cmdbUpdateDrop">
+                        <div class="drop-zone-text">Drop CSV or Excel file here, or click to browse</div>
+                        <input type="file" id="cmdbUpdateFile" accept=".csv,.xlsx,.xls" class="drop-zone-input">
+                    </div>
+                    <div id="cmdbUpdateMsg" class="hidden" style="margin-top:10px;"></div>
+                    <button class="btn btn-primary" id="cmdbUpdateBtn" style="margin-top:12px;">Upload & Process</button>
+                </div>
+
+                <div id="inner-cmdb-delete" class="inner-tab-content hidden">
+                    <p class="tab-desc">Upload a CSV or Excel file with a Serial column. Matching devices will be deleted.</p>
+                    <div class="drop-zone" id="cmdbDeleteDrop">
+                        <div class="drop-zone-text">Drop CSV or Excel file here, or click to browse</div>
+                        <input type="file" id="cmdbDeleteFile" accept=".csv,.xlsx,.xls" class="drop-zone-input">
+                    </div>
+                    <div id="cmdbDeleteMsg" class="hidden" style="margin-top:10px;"></div>
+                    <button class="btn btn-danger" id="cmdbDeleteBtn" style="margin-top:12px;">Delete Records</button>
+                </div>
+
+                <div id="inner-cmdb-export" class="inner-tab-content hidden">
+                    <p class="tab-desc">Export the full CMDB table to a CSV file.</p>
+                    <button class="btn btn-primary" id="cmdbExportBtn">&#x2B07; Export CMDB to CSV</button>
+                    <div id="cmdbExportMsg" class="hidden" style="margin-top:10px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Locations Tab ─────────────────────────────────────────────── -->
+        <div id="tab-locations" class="tab-content hidden">
+            <div class="card">
+                <div class="card-title">CMN Location Management</div>
+                <div class="tab-bar-inner">
+                    <button class="inner-tab-btn active" data-inner="loc-update">Update / Insert</button>
+                    <button class="inner-tab-btn" data-inner="loc-delete">Delete</button>
+                    <button class="inner-tab-btn" data-inner="loc-export">Export</button>
+                </div>
+
+                <div id="inner-loc-update" class="inner-tab-content active">
+                    <p class="tab-desc">Upload a CSV or Excel file to insert new locations or update existing ones. Matched by Facility name.</p>
+                    <a href="#" class="btn btn-secondary btn-sm" id="locTemplateDl" style="margin-bottom:12px;">&#x2B07; Download Sample Template</a>
+                    <div class="drop-zone" id="locUpdateDrop">
+                        <div class="drop-zone-text">Drop CSV or Excel file here, or click to browse</div>
+                        <input type="file" id="locUpdateFile" accept=".csv,.xlsx,.xls" class="drop-zone-input">
+                    </div>
+                    <div id="locUpdateMsg" class="hidden" style="margin-top:10px;"></div>
+                    <button class="btn btn-primary" id="locUpdateBtn" style="margin-top:12px;">Upload & Process</button>
+                </div>
+
+                <div id="inner-loc-delete" class="inner-tab-content hidden">
+                    <p class="tab-desc">Upload a CSV or Excel file with a Facility column. Matching locations will be deleted.</p>
+                    <div class="drop-zone" id="locDeleteDrop">
+                        <div class="drop-zone-text">Drop CSV or Excel file here, or click to browse</div>
+                        <input type="file" id="locDeleteFile" accept=".csv,.xlsx,.xls" class="drop-zone-input">
+                    </div>
+                    <div id="locDeleteMsg" class="hidden" style="margin-top:10px;"></div>
+                    <button class="btn btn-danger" id="locDeleteBtn" style="margin-top:12px;">Delete Records</button>
+                </div>
+
+                <div id="inner-loc-export" class="inner-tab-content hidden">
+                    <p class="tab-desc">Export the full CMN Location table to a CSV file.</p>
+                    <button class="btn btn-primary" id="locExportBtn">&#x2B07; Export Locations to CSV</button>
+                    <div id="locExportMsg" class="hidden" style="margin-top:10px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Records Tab ───────────────────────────────────────────────── -->
+        <div id="tab-records" class="tab-content hidden">
+            <div class="card">
+                <div class="card-title">TechInstall Records</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+                    <button class="btn btn-primary" id="recordsExportBtn">&#x2B07; Export All Records</button>
+                    <button class="btn btn-secondary" id="recordsImportToggle">&#x2B06; Import Records</button>
+                    <button class="btn btn-danger" id="deleteAllBtn">&#x1F5D1; Delete All Records</button>
+                </div>
+
+                <div id="recordsImportSection" class="hidden" style="margin-bottom:16px;">
+                    <div class="drop-zone" id="recordsImportDrop">
+                        <div class="drop-zone-text">Drop CSV file here, or click to browse</div>
+                        <input type="file" id="recordsImportFile" accept=".csv" class="drop-zone-input">
+                    </div>
+                    <button class="btn btn-primary" id="recordsImportBtn" style="margin-top:12px;">Upload & Import</button>
+                </div>
+
+                <div id="recordsMsg" class="hidden" style="margin-bottom:12px;"></div>
+
+                <div class="table-wrapper">
+                    <table id="recordsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Service Type</th>
+                                <th>Serial</th>
+                                <th>Asset</th>
+                                <th>Manufacturer</th>
+                                <th>Model</th>
+                                <th>Location</th>
+                                <th>Created By</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsBody"></tbody>
+                    </table>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; margin-top:12px;">
+                    <button class="btn btn-secondary btn-sm" id="recordsPrev">&#x2190; Prev</button>
+                    <span id="recordsPage" style="font-size:0.88rem; color:#555;">Page 1</span>
+                    <button class="btn btn-secondary btn-sm" id="recordsNext">Next &#x2192;</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Users Tab ─────────────────────────────────────────────────── -->
+        <div id="tab-users" class="tab-content hidden">
+            <div class="card">
+                <div class="card-title">User Management</div>
+
+                <div style="margin-bottom:20px;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" id="newUsername" placeholder="Username">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="newEmail" placeholder="Email">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="newPassword" placeholder="Password">
+                        </div>
+                        <div class="form-group">
+                            <label>Role</label>
+                            <select id="newRole">
+                                <option value="tech_basic">Tech Basic</option>
+                                <option value="tech_full">Tech Full</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="userMsg" class="hidden" style="margin-bottom:10px;"></div>
+                    <button class="btn btn-primary" id="addUserBtn">Add User</button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 id="confirmTitle">Are you sure?</h3>
+            <p id="confirmMessage"></p>
+            <div id="confirmExtraInput" class="hidden">
+                <input type="text" id="confirmInput" placeholder='Type DELETE to confirm' style="width:100%; margin-bottom:12px;">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="confirmCancel">Cancel</button>
+                <button class="btn btn-danger" id="confirmOk">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div id="resetPasswordModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>Reset Password</h3>
+            <p id="resetPasswordUser" style="margin-bottom:12px; font-weight:600; color:#2E74B5;"></p>
+            <div class="form-group">
+                <label>New Password</label>
+                <input type="password" id="resetPasswordInput" placeholder="Enter new password">
+            </div>
+            <div id="resetPasswordMsg" class="hidden" style="margin-bottom:10px;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="resetPasswordCancel">Cancel</button>
+                <button class="btn btn-primary" id="resetPasswordOk">Reset Password</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
