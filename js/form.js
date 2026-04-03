@@ -298,28 +298,57 @@ document.getElementById("clearBtn").addEventListener("click", clearForm);
 
 // ── Mobile Camera Scanning ────────────────────────────────────────────────
 let activeField = null;
-let cameraStream = null;
+let codeReader = null;
 
 async function startScan(fieldId) {
     activeField = fieldId;
     const modal = document.getElementById("cameraModal");
+    const resultEl = document.getElementById("scanResult");
     modal.classList.remove("hidden");
-    const video = document.getElementById("cameraStream");
+    resultEl.classList.add("hidden");
+    resultEl.textContent = "";
+
     try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" }
+        codeReader = new ZXing.BrowserMultiFormatReader();
+        const videoDevices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+
+        // Prefer back camera on mobile
+        const backCamera = videoDevices.find(d =>
+            d.label.toLowerCase().includes("back") ||
+            d.label.toLowerCase().includes("rear") ||
+            d.label.toLowerCase().includes("environment")
+        );
+        const deviceId = backCamera ? backCamera.deviceId : (videoDevices[0]?.deviceId || undefined);
+
+        await codeReader.decodeFromVideoDevice(deviceId, "cameraStream", (result, err) => {
+            if (result) {
+                const value = result.getText();
+                document.getElementById(activeField).value = value;
+
+                // Trigger serial lookup if scanning serial field
+                if (activeField === "serial") {
+                    document.getElementById("serial").dispatchEvent(new Event("input"));
+                }
+
+                resultEl.textContent = `✓ Scanned: ${value}`;
+                resultEl.className = "field-notice success";
+                resultEl.classList.remove("hidden");
+
+                setTimeout(() => stopScan(), 1000);
+            }
         });
-        video.srcObject = cameraStream;
+
     } catch (err) {
-        document.getElementById("scanResult").textContent = "Camera not available on this device.";
-        document.getElementById("scanResult").classList.remove("hidden");
+        resultEl.textContent = "Camera not available or permission denied.";
+        resultEl.className = "field-notice error";
+        resultEl.classList.remove("hidden");
     }
 }
 
 function stopScan() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(t => t.stop());
-        cameraStream = null;
+    if (codeReader) {
+        codeReader.reset();
+        codeReader = null;
     }
     document.getElementById("cameraModal").classList.add("hidden");
     document.getElementById("scanResult").classList.add("hidden");
