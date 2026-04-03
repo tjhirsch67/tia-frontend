@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIA - Tech Install Form</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="form.html">TIA</a>
+        <div class="hamburger" id="hamburger">
+            <span></span><span></span><span></span>
+        </div>
+        <ul class="navbar-nav" id="mainNav">
+            <li><a href="form.html" class="active">Tech Install</a></li>
+            <li id="navReport" class="hidden"><a href="report.html">Reports</a></li>
+            <li id="navAdmin" class="hidden"><a href="admin.html">Admin</a></li>
+        </ul>
+        <div class="navbar-user">
+            <span id="navUsername"></span>
+            <button class="btn btn-secondary btn-sm" onclick="Auth.logout()">Sign Out</button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="page-title">Tech Install Form</div>
+
+        <!-- Status Messages -->
+        <div id="formSuccess" class="success-message hidden"></div>
+        <div id="formError" class="error-message hidden"></div>
+
+        <div class="card">
+            <div class="card-title">Service Information</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="date">Date</label>
+                    <input type="text" id="date" readonly class="auto-filled">
+                </div>
+                <div class="form-group">
+                    <label for="serviceType">Service Type <span class="required">*</span></label>
+                    <select id="serviceType">
+                        <option value="">-- Select --</option>
+                        <option value="Install-New">Install-New</option>
+                        <option value="Move">Move</option>
+                        <option value="Hot Swap">Hot Swap</option>
+                        <option value="Removal">Removal</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Device Information</div>
+
+            <div class="form-group">
+                <label for="serial">Serial Number <span class="required">*</span></label>
+                <div class="input-with-icon">
+                    <input type="text" id="serial" placeholder="Scan or type serial number">
+                    <button class="scan-btn" id="scanSerialBtn" title="Scan barcode">&#x1F4F7;</button>
+                </div>
+                <div id="serialNotice" class="field-notice hidden"></div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="asset">Asset <span class="required">*</span></label>
+                    <div class="input-with-icon">
+                        <input type="text" id="asset" placeholder="Asset tag">
+                        <button class="scan-btn" id="scanAssetBtn" title="Scan barcode">&#x1F4F7;</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="mercyId">MercyID <span class="required">*</span></label>
+                    <div class="input-with-icon">
+                        <input type="text" id="mercyId" placeholder="Mercy ID">
+                        <button class="scan-btn" id="scanMercyBtn" title="Scan barcode">&#x1F4F7;</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="manufacturer">Manufacturer <span class="required">*</span></label>
+                    <input type="text" id="manufacturer" placeholder="e.g. HP, Konica Minolta">
+                </div>
+                <div class="form-group">
+                    <label for="model">Model <span class="required">*</span></label>
+                    <div class="input-with-icon">
+                        <input type="text" id="model" placeholder="Printer model">
+                        <button class="scan-btn" id="scanModelBtn" title="Scan barcode">&#x1F4F7;</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Location Information</div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="location">Location (Facility)</label>
+                    <input type="text" id="location" placeholder="Search facility name..." autocomplete="off">
+                    <div id="locationDropdown" class="typeahead-dropdown hidden"></div>
+                </div>
+                <div class="form-group">
+                    <label for="address">Address</label>
+                    <input type="text" id="address" placeholder="Search street address..." autocomplete="off">
+                    <div id="addressDropdown" class="typeahead-dropdown hidden"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="locationManual">Location (Manual) — use if not in list</label>
+                <input type="text" id="locationManual" placeholder="Type location name manually">
+            </div>
+
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label for="city">City</label>
+                    <input type="text" id="city" placeholder="City" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="state">State</label>
+                    <input type="text" id="state" placeholder="State" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="zip">Zip</label>
+                    <input type="text" id="zip" placeholder="Zip" readonly>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group" id="floorGroup">
+                    <label for="floor">Floor <span class="required">*</span></label>
+                    <input type="text" id="floor" placeholder="e.g. 1st, 2nd">
+                </div>
+                <div class="form-group" id="roomGroup">
+                    <label for="room">Room <span class="required">*</span></label>
+                    <input type="text" id="room" placeholder="e.g. Room 204, Reception">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Additional Information</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="endUser">End User</label>
+                    <input type="text" id="endUser" placeholder="Full name">
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone</label>
+                    <input type="text" id="phone" placeholder="Phone number">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="atr">ATR (Automatic Toner Replenishment)</label>
+                    <select id="atr">
+                        <option value="">-- Select --</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ip">IP Address</label>
+                    <input type="text" id="ip" placeholder="e.g. 10.0.0.1 or USB">
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-bottom:40px;">
+            <button class="btn btn-primary" id="submitBtn" style="flex:1;">Submit</button>
+            <button class="btn btn-secondary" id="clearBtn">Clear Form</button>
+        </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div id="cameraModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>Scan Barcode</h3>
+            <video id="cameraStream" style="width:100%; border-radius:6px; margin-bottom:16px;" autoplay playsinline></video>
+            <div id="scanResult" class="field-notice hidden"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancelScanBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/form.js"></script>
+</body>
+</html>
