@@ -310,22 +310,22 @@ async function startScan(fieldId) {
 
     try {
         codeReader = new ZXing.BrowserMultiFormatReader();
-        const videoDevices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
 
-        // Prefer back camera on mobile
-        const backCamera = videoDevices.find(d =>
-            d.label.toLowerCase().includes("back") ||
-            d.label.toLowerCase().includes("rear") ||
-            d.label.toLowerCase().includes("environment")
-        );
-        const deviceId = backCamera ? backCamera.deviceId : (videoDevices[0]?.deviceId || undefined);
+        // Request camera stream directly with environment facing mode
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } }
+        });
 
-        await codeReader.decodeFromVideoDevice(deviceId, "cameraStream", (result, err) => {
+        const video = document.getElementById("cameraStream");
+        video.srcObject = stream;
+        await video.play();
+
+        // Use decodeFromStream instead of decodeFromVideoDevice
+        codeReader.decodeFromStream(stream, video, (result, err) => {
             if (result) {
                 const value = result.getText();
                 document.getElementById(activeField).value = value;
 
-                // Trigger serial lookup if scanning serial field
                 if (activeField === "serial") {
                     document.getElementById("serial").dispatchEvent(new Event("input"));
                 }
@@ -339,7 +339,8 @@ async function startScan(fieldId) {
         });
 
     } catch (err) {
-        resultEl.textContent = "Camera not available or permission denied.";
+        console.error("Camera error:", err);
+        resultEl.textContent = `Camera error: ${err.message || "Permission denied or not available."}`;
         resultEl.className = "field-notice error";
         resultEl.classList.remove("hidden");
     }
@@ -349,6 +350,11 @@ function stopScan() {
     if (codeReader) {
         codeReader.reset();
         codeReader = null;
+    }
+    const video = document.getElementById("cameraStream");
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
     }
     document.getElementById("cameraModal").classList.add("hidden");
     document.getElementById("scanResult").classList.add("hidden");
