@@ -34,6 +34,7 @@
             <button class="tab-btn" data-tab="locations">Locations</button>
             <button class="tab-btn" data-tab="records">Records</button>
             <button class="tab-btn" data-tab="users">Users</button>
+            <button class="tab-btn" data-tab="mfrmodels">Mfr-Models</button>
         </div>
 
         <!-- ── CMDB Tab ──────────────────────────────────────────────────── -->
@@ -214,6 +215,46 @@
                 </div>
             </div>
         </div>
+
+        <!-- ── Mfr-Models Tab ─────────────────────────────────────────────── -->
+        <div id="tab-mfrmodels" class="tab-content hidden">
+            <div class="card">
+                <div class="card-title">Manufacturer &amp; Model Management</div>
+                <div class="tab-bar-inner">
+                    <button class="inner-tab-btn active" data-inner="mfr-update">Update / Insert</button>
+                    <button class="inner-tab-btn" data-inner="mfr-delete">Delete</button>
+                    <button class="inner-tab-btn" data-inner="mfr-export">Export</button>
+                </div>
+
+                <div id="inner-mfr-update" class="inner-tab-content active">
+                    <p class="tab-desc">Upload a CSV or Excel file to insert new manufacturer/model combinations. Matched by Manufacturer + Model pair.</p>
+                    <a href="#" class="btn btn-secondary btn-sm" id="mfrTemplateDl" style="margin-bottom:12px;">&#x2B07; Download Sample Template</a>
+                    <div class="drop-zone" id="mfrUpdateDrop">
+                        <div class="drop-zone-text">Drop CSV or Excel file here, or click to browse</div>
+                        <input type="file" id="mfrUpdateFile" accept=".csv,.xlsx,.xls" class="drop-zone-input">
+                    </div>
+                    <div id="mfrUpdateMsg" class="hidden" style="margin-top:10px;"></div>
+                    <button class="btn btn-primary" id="mfrUpdateBtn" style="margin-top:12px;">Upload & Process</button>
+                </div>
+
+                <div id="inner-mfr-delete" class="inner-tab-content hidden">
+                    <p class="tab-desc">Upload a CSV or Excel file with Manufacturer and Model columns. Matching records will be deleted.</p>
+                    <div class="drop-zone" id="mfrDeleteDrop">
+                        <div class="drop-zone-text">Drop CSV or Excel file here, or click to browse</div>
+                        <input type="file" id="mfrDeleteFile" accept=".csv,.xlsx,.xls" class="drop-zone-input">
+                    </div>
+                    <div id="mfrDeleteMsg" class="hidden" style="margin-top:10px;"></div>
+                    <button class="btn btn-danger" id="mfrDeleteBtn" style="margin-top:12px;">Delete Records</button>
+                </div>
+
+                <div id="inner-mfr-export" class="inner-tab-content hidden">
+                    <p class="tab-desc">Export the full Manufacturer/Model table to a CSV file.</p>
+                    <button class="btn btn-primary" id="mfrExportBtn">&#x2B07; Export to CSV</button>
+                    <div id="mfrExportMsg" class="hidden" style="margin-top:10px;"></div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Confirm Modal -->

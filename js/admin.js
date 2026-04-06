@@ -65,6 +65,8 @@ setupDropZone("cmdbDeleteDrop", "cmdbDeleteFile");
 setupDropZone("locUpdateDrop", "locUpdateFile");
 setupDropZone("locDeleteDrop", "locDeleteFile");
 setupDropZone("recordsImportDrop", "recordsImportFile");
+setupDropZone("mfrUpdateDrop", "mfrUpdateFile");
+setupDropZone("mfrDeleteDrop", "mfrDeleteFile");
 
 // ── Show Message ──────────────────────────────────────────────────────────
 function showMsg(id, text, isError = false) {
@@ -168,6 +170,15 @@ document.getElementById("recordsTemplateDl").addEventListener("click", (e) => {
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
     a.download = "records_import_template.csv";
+    a.click();
+});
+
+document.getElementById("mfrTemplateDl").addEventListener("click", (e) => {
+    e.preventDefault();
+    const csv = "manufacturer,model\nHP,LaserJet M507\nKM,Bizhub C360i\nLexmark,MX622";
+    const a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    a.download = "mfr_models_template.csv";
     a.click();
 });
 
@@ -391,3 +402,18 @@ window.resetPassword = function(id, username) {
         }
     };
 };
+
+// ── Mfr-Models Actions ────────────────────────────────────────────────────
+document.getElementById("mfrUpdateBtn").addEventListener("click", () =>
+    uploadFile("/mfr-models/import", "mfrUpdateFile", "mfrUpdateMsg"));
+
+document.getElementById("mfrDeleteBtn").addEventListener("click", () => {
+    showConfirm(
+        "Delete Mfr-Model Records",
+        "This will permanently delete all matching manufacturer/model records. This cannot be undone.",
+        () => uploadFile("/mfr-models/delete-batch", "mfrDeleteFile", "mfrDeleteMsg")
+    );
+});
+
+document.getElementById("mfrExportBtn").addEventListener("click", () =>
+    downloadCSV("/mfr-models/export", "mfr_models_export.csv", "mfrExportMsg"));

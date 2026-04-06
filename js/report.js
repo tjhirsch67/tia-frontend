@@ -25,18 +25,49 @@ async function loadLastRun() {
             <p style="margin-top:6px;">Unreported records: <strong>${data.unreported_count}</strong></p>
         `;
     } else {
-        el.innerHTML = `<p>No exports have been run yet.</p>
-            <p style="margin-top:6px;">Unreported records: <strong>${data.unreported_count}</strong></p>`;
+        el.innerHTML = `
+            <p>No exports have been run yet.</p>
+            <p style="margin-top:6px;">Unreported records: <strong>${data.unreported_count}</strong></p>
+        `;
     }
 }
 
 loadLastRun();
 
-// ── Export ────────────────────────────────────────────────────────────────
-document.getElementById("exportBtn").addEventListener("click", async () => {
-    const errorDiv = document.getElementById("reportError");
+// ── CSV Download Helper ───────────────────────────────────────────────────
+async function downloadCSVFromUrl(url, filename, errorDivId) {
+    const errorDiv = document.getElementById(errorDivId);
     errorDiv.classList.add("hidden");
 
+    try {
+        const res = await fetch(`${CONFIG.API_BASE}${url}`, {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${Auth.getToken()}` }
+        });
+
+        if (res.ok) {
+            const blob = await res.blob();
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            return true;
+        } else {
+            errorDiv.textContent = "Export failed. Please try again.";
+            errorDiv.classList.remove("hidden");
+            return false;
+        }
+    } catch (err) {
+        errorDiv.textContent = "Could not connect to server.";
+        errorDiv.classList.remove("hidden");
+        return false;
+    }
+}
+
+// ── Section 1: Export by Date & Service Type ──────────────────────────────
+document.getElementById("exportBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("exportBtn");
     const startDate = document.getElementById("startDate").value;
     const endDate = document.getElementById("endDate").value;
     const unreportedOnly = document.getElementById("unreportedOnly").checked;
@@ -45,12 +76,12 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
         .map(cb => cb.value);
 
     if (!checkedTypes.length) {
+        const errorDiv = document.getElementById("reportError");
         errorDiv.textContent = "Please select at least one service type.";
         errorDiv.classList.remove("hidden");
         return;
     }
 
-    const btn = document.getElementById("exportBtn");
     btn.disabled = true;
     btn.textContent = "Exporting...";
 
@@ -59,31 +90,35 @@ document.getElementById("exportBtn").addEventListener("click", async () => {
     if (endDate) url += `&end_date=${endDate}T23:59:59`;
     if (unreportedOnly) url += `&unreported_only=true`;
 
-    try {
-        const res = await fetch(`${CONFIG.API_BASE}${url}`, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${Auth.getToken()}`
-            }
-        });
+    const filename = `TIA_Report_${new Date().toISOString().slice(0,10)}.csv`;
+    const success = await downloadCSVFromUrl(url, filename, "reportError");
+    if (success) await loadLastRun();
 
-        if (res.ok) {
-            const blob = await res.blob();
-            const filename = `TIA_Report_${new Date().toISOString().slice(0,10)}.csv`;
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(a.href);
-            await loadLastRun();
-        } else {
-            errorDiv.textContent = "Export failed. Please try again.";
-            errorDiv.classList.remove("hidden");
-        }
-    } catch (err) {
-        errorDiv.textContent = "Could not connect to server.";
+    btn.disabled = false;
+    btn.textContent = "⬇ Export to CSV";
+});
+
+// ── Section 2: Device Lookup Report ──────────────────────────────────────
+document.getElementById("lookupExportBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("lookupExportBtn");
+    const field = document.getElementById("lookupField").value;
+    const value = document.getElementById("lookupValue").value.trim();
+    const errorDiv = document.getElementById("lookupError");
+
+    errorDiv.classList.add("hidden");
+
+    if (!value) {
+        errorDiv.textContent = "Please enter a search value.";
         errorDiv.classList.remove("hidden");
+        return;
     }
+
+    btn.disabled = true;
+    btn.textContent = "Exporting...";
+
+    const url = `/reports/lookup?field=${encodeURIComponent(field)}&value=${encodeURIComponent(value)}`;
+    const filename = `TIA_Lookup_${field}_${value}_${new Date().toISOString().slice(0,10)}.csv`;
+    await downloadCSVFromUrl(url, filename, "lookupError");
 
     btn.disabled = false;
     btn.textContent = "⬇ Export to CSV";

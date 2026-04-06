@@ -543,3 +543,108 @@ tbody td {
     margin-bottom: 14px;
     line-height: 1.5;
 }
+
+/* ── iPad Checkbox Fix ────────────────────────────────────────────────────── */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .svc-type-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .svc-type-group label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 400;
+    }
+}
+
+/* ── Scan Overlay ─────────────────────────────────────────────────────────── */
+.scan-overlay {
+    position: relative;
+    width: 100%;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #000;
+}
+
+.scan-overlay video {
+    width: 100%;
+    display: block;
+    border-radius: 6px;
+}
+
+.scan-target {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70%;
+    height: 120px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.45);
+}
+
+.scan-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #ff3b3b;
+    animation: scanLine 2s linear infinite;
+}
+
+@keyframes scanLine {
+    0%   { top: 0; }
+    100% { top: 100%; }
+}
+
+.scan-hint {
+    text-align: center;
+    color: #fff;
+    font-size: 0.82rem;
+    margin-top: 10px;
+    opacity: 0.85;
+}
+
+/* ── Combobox ─────────────────────────────────────────────────────────────── */
+.combobox-wrapper {
+    position: relative;
+}
+
+.combobox-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #ccd6e0;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+}
+
+.combobox-item {
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: #333;
+    border-bottom: 1px solid #f0f4f8;
+}
+
+.combobox-item:hover {
+    background: #eaf2fb;
+}
+
+.combobox-empty {
+    padding: 9px 12px;
+    font-size: 0.85rem;
+    color: #999;
+    font-style: italic;
+}

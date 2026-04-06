@@ -24,6 +24,118 @@ function setToday() {
 }
 setToday();
 
+// ── Manufacturer / Model Combobox ─────────────────────────────────────────
+let allMfrModels = [];
+let comboboxEnabled = false;
+
+async function loadMfrModels() {
+    const res = await Auth.apiCall("GET", "/mfr-models/");
+    if (res && res.ok) {
+        allMfrModels = await res.json();
+    }
+}
+
+function setupCombobox(inputId, dropdownId, getOptions, onSelect) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+
+    input.addEventListener("input", () => {
+        if (!comboboxEnabled) return;
+        const q = input.value.trim().toLowerCase();
+        const options = getOptions().filter(o =>
+            o.toLowerCase().includes(q)
+        );
+        renderCombobox(dropdown, options, (val) => {
+            input.value = val;
+            dropdown.classList.add("hidden");
+            onSelect(val);
+        });
+    });
+
+    input.addEventListener("focus", () => {
+        if (!comboboxEnabled) return;
+        const options = getOptions();
+        const q = input.value.trim().toLowerCase();
+        const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options;
+        renderCombobox(dropdown, filtered, (val) => {
+            input.value = val;
+            dropdown.classList.add("hidden");
+            onSelect(val);
+        });
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add("hidden");
+        }
+    });
+}
+
+function renderCombobox(dropdown, options, onSelect) {
+    dropdown.innerHTML = "";
+    if (!options.length) {
+        const empty = document.createElement("div");
+        empty.className = "combobox-empty";
+        empty.textContent = "No matches — type to use custom value";
+        dropdown.appendChild(empty);
+    } else {
+        options.forEach(opt => {
+            const item = document.createElement("div");
+            item.className = "combobox-item";
+            item.textContent = opt;
+            item.addEventListener("click", () => onSelect(opt));
+            dropdown.appendChild(item);
+        });
+    }
+    dropdown.classList.remove("hidden");
+}
+
+function getMfrOptions() {
+    return [...new Set(allMfrModels.map(r => r.manufacturer))].sort();
+}
+
+function getModelOptions(manufacturer) {
+    return allMfrModels
+        .filter(r => !manufacturer || r.manufacturer === manufacturer)
+        .map(r => r.model)
+        .sort();
+}
+
+function enableComboboxes() {
+    comboboxEnabled = true;
+    document.getElementById("manufacturer").readOnly = false;
+    document.getElementById("model").readOnly = false;
+    document.getElementById("manufacturerDropdown").classList.add("hidden");
+    document.getElementById("modelDropdown").classList.add("hidden");
+}
+
+function disableComboboxes() {
+    comboboxEnabled = false;
+    document.getElementById("manufacturerDropdown").classList.add("hidden");
+    document.getElementById("modelDropdown").classList.add("hidden");
+}
+
+let selectedManufacturer = "";
+
+setupCombobox(
+    "manufacturer",
+    "manufacturerDropdown",
+    getMfrOptions,
+    (val) => {
+        selectedManufacturer = val;
+        document.getElementById("model").value = "";
+    }
+);
+
+setupCombobox(
+    "model",
+    "modelDropdown",
+    () => getModelOptions(selectedManufacturer),
+    () => {}
+);
+
+loadMfrModels();
+
 // ── Serial Lookup ─────────────────────────────────────────────────────────
 const deviceFields = ["asset", "mercyId", "manufacturer", "model"];
 
@@ -33,10 +145,11 @@ function lockDeviceFields() {
         el.readOnly = true;
         el.classList.add("auto-filled");
     });
-    ["scanAssetBtn", "scanMercyBtn", "scanModelBtn"].forEach(id => {
+    ["scanAssetBtn", "scanMercyBtn"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.style.display = "none";
     });
+    disableComboboxes();
 }
 
 function unlockDeviceFields() {
@@ -45,14 +158,16 @@ function unlockDeviceFields() {
         el.readOnly = false;
         el.classList.remove("auto-filled");
     });
-    ["scanAssetBtn", "scanMercyBtn", "scanModelBtn"].forEach(id => {
+    ["scanAssetBtn", "scanMercyBtn"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.style.display = "";
     });
+    enableComboboxes();
 }
 
 function clearDeviceFields() {
     deviceFields.forEach(f => document.getElementById(f).value = "");
+    selectedManufacturer = "";
 }
 
 let serialLookupTimeout = null;
@@ -74,6 +189,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
             document.getElementById("mercyId").value = data.mercy_id || "";
             document.getElementById("manufacturer").value = data.manufacturer || "";
             document.getElementById("model").value = data.model || "";
+            selectedManufacturer = data.manufacturer || "";
             lockDeviceFields();
             notice.textContent = "✓ Device found in CMDB";
             notice.className = "field-notice success";
@@ -155,7 +271,6 @@ function unlockLocationFields() {
 setupTypeahead("location", "locationDropdown", "facility", fillFromLocation);
 setupTypeahead("address", "addressDropdown", "street", fillFromLocation);
 
-// Location manual — unlock city/state/zip
 document.getElementById("locationManual").addEventListener("input", (e) => {
     if (e.target.value.trim()) {
         document.getElementById("location").value = "";
@@ -208,7 +323,7 @@ function validate() {
 
     if (!type) return "Please select a Service Type.";
     if (!serial) return "Serial number is required.";
-    if (!location && !locationManual) return "Please select a Location or enter a manual location.";
+    if (!location && !locationManual) return "Location is required for all service types.";
 
     if (type !== "Removal") {
         if (!asset) return "Asset is required.";
@@ -289,7 +404,9 @@ function clearForm() {
     document.getElementById("serviceType").value = "";
     document.getElementById("atr").value = "";
     document.getElementById("serialNotice").classList.add("hidden");
+    selectedManufacturer = "";
     unlockDeviceFields();
+    disableComboboxes();
     lockLocationFields();
     setToday();
 }
@@ -305,44 +422,39 @@ async function startScan(fieldId) {
     const modal = document.getElementById("cameraModal");
     const resultEl = document.getElementById("scanResult");
     modal.classList.remove("hidden");
-    resultEl.classList.add("hidden");
     resultEl.textContent = "";
+    resultEl.className = "";
 
     try {
-        codeReader = new ZXing.BrowserMultiFormatReader();
-
-        // Request camera stream directly with environment facing mode
+        codeReader = new ZXing.BrowserBarcodeReader();
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" } }
+            video: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
         });
 
         const video = document.getElementById("cameraStream");
         video.srcObject = stream;
         await video.play();
 
-        // Use decodeFromStream instead of decodeFromVideoDevice
         codeReader.decodeFromStream(stream, video, (result, err) => {
             if (result) {
                 const value = result.getText();
                 document.getElementById(activeField).value = value;
-
                 if (activeField === "serial") {
                     document.getElementById("serial").dispatchEvent(new Event("input"));
                 }
-
                 resultEl.textContent = `✓ Scanned: ${value}`;
                 resultEl.className = "field-notice success";
-                resultEl.classList.remove("hidden");
-
-                setTimeout(() => stopScan(), 1000);
+                setTimeout(() => stopScan(), 1200);
             }
         });
 
     } catch (err) {
-        console.error("Camera error:", err);
         resultEl.textContent = `Camera error: ${err.message || "Permission denied or not available."}`;
         resultEl.className = "field-notice error";
-        resultEl.classList.remove("hidden");
     }
 }
 
@@ -357,12 +469,11 @@ function stopScan() {
         video.srcObject = null;
     }
     document.getElementById("cameraModal").classList.add("hidden");
-    document.getElementById("scanResult").classList.add("hidden");
     activeField = null;
 }
 
 document.getElementById("cancelScanBtn").addEventListener("click", stopScan);
+document.getElementById("manualEntryBtn").addEventListener("click", stopScan);
 document.getElementById("scanSerialBtn").addEventListener("click", () => startScan("serial"));
 document.getElementById("scanAssetBtn").addEventListener("click", () => startScan("asset"));
 document.getElementById("scanMercyBtn").addEventListener("click", () => startScan("mercyId"));
-document.getElementById("scanModelBtn").addEventListener("click", () => startScan("model"));

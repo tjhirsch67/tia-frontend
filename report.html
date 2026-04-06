@@ -28,17 +28,13 @@
     <div class="main-content">
         <div class="page-title">Reports</div>
 
-        <!-- Last Export Info -->
+        <!-- ── Section 1: Export by Date & Service Type ────────────────── -->
         <div class="card">
-            <div class="card-title">Last Export</div>
-            <div id="lastRunInfo" style="color:#555; font-size:0.92rem;">
+            <div class="card-title">Export by Date &amp; Service Type</div>
+
+            <div id="lastRunInfo" style="color:#555; font-size:0.92rem; margin-bottom:16px;">
                 Loading...
             </div>
-        </div>
-
-        <!-- Filters -->
-        <div class="card">
-            <div class="card-title">Export Filters</div>
 
             <div class="form-row">
                 <div class="form-group">
@@ -53,7 +49,7 @@
 
             <div class="form-group">
                 <label>Service Types</label>
-                <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:6px;">
+                <div class="svc-type-group" style="display:flex; flex-wrap:wrap; gap:16px; margin-top:6px;">
                     <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
                         <input type="checkbox" value="Install-New" class="svc-type" checked> Install-New
                     </label>
@@ -77,10 +73,33 @@
             </div>
 
             <div id="reportError" class="error-message hidden"></div>
+            <button class="btn btn-primary" id="exportBtn">&#x2B07; Export to CSV</button>
+        </div>
 
-            <button class="btn btn-primary" id="exportBtn">
-                &#x2B07; Export to CSV
-            </button>
+        <!-- ── Section 2: Device Lookup Report ────────────────────────── -->
+        <div class="card">
+            <div class="card-title">Device Lookup Report</div>
+            <p style="color:#666; font-size:0.88rem; margin-bottom:16px;">
+                Search all records by a specific field value. Returns all matching records as a CSV export.
+            </p>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="lookupField">Search By</label>
+                    <select id="lookupField">
+                        <option value="serial">Serial Number</option>
+                        <option value="asset">Asset Tag</option>
+                        <option value="mercy_id">MercyID</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="lookupValue">Search Value</label>
+                    <input type="text" id="lookupValue" placeholder="Enter value to search...">
+                </div>
+            </div>
+
+            <div id="lookupError" class="error-message hidden"></div>
+            <button class="btn btn-primary" id="lookupExportBtn">&#x2B07; Export to CSV</button>
         </div>
     </div>
 
