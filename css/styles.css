@@ -544,19 +544,33 @@ tbody td {
     line-height: 1.5;
 }
 
-/* ── iPad Checkbox Fix ────────────────────────────────────────────────────── */
-@media (min-width: 768px) and (max-width: 1024px) {
-    .svc-type-group {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
+/* ── Service Type Checkbox Layout ─────────────────────────────────────────── */
+.svc-type-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    margin-top: 6px;
+}
 
-    .svc-type-group label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 400;
+.svc-type-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.svc-type-group input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+@media (min-width: 640px) {
+    .svc-type-group {
+        grid-template-columns: repeat(4, auto);
+        justify-content: start;
     }
 }
 
@@ -573,6 +587,12 @@ tbody td {
     width: 100%;
     display: block;
     border-radius: 6px;
+    height: 240px;
+    object-fit: cover;
+}
+
+.scan-overlay.portrait video {
+    height: 380px;
 }
 
 .scan-target {
@@ -580,11 +600,16 @@ tbody td {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 70%;
-    height: 120px;
-    border: 2px solid rgba(255, 255, 255, 0.7);
+    width: 75%;
+    height: 100px;
+    border: 2px solid rgba(255, 255, 255, 0.8);
     border-radius: 8px;
     box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.45);
+}
+
+.scan-overlay.portrait .scan-target {
+    width: 60%;
+    height: 200px;
 }
 
 .scan-line {

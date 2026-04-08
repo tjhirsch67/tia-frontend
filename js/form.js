@@ -24,6 +24,15 @@ function setToday() {
 }
 setToday();
 
+// ── Uppercase Fields ──────────────────────────────────────────────────────
+["serial", "mercyId", "asset"].forEach(id => {
+    document.getElementById(id).addEventListener("input", (e) => {
+        const pos = e.target.selectionStart;
+        e.target.value = e.target.value.toUpperCase();
+        e.target.setSelectionRange(pos, pos);
+    });
+});
+
 // ── Manufacturer / Model Combobox ─────────────────────────────────────────
 let allMfrModels = [];
 let comboboxEnabled = false;
@@ -326,7 +335,7 @@ function validate() {
     if (!location && !locationManual) return "Location is required for all service types.";
 
     if (type !== "Removal") {
-        if (!asset) return "Asset is required.";
+        if (!asset) return "Asset Tag is required.";
         if (!mercyId) return "MercyID is required.";
         if (!manufacturer) return "Manufacturer is required.";
         if (!model) return "Model is required.";
@@ -413,6 +422,18 @@ function clearForm() {
 
 document.getElementById("clearBtn").addEventListener("click", clearForm);
 
+// ── Orientation Detection for Scanner ────────────────────────────────────
+function updateScanOrientation() {
+    const overlay = document.querySelector(".scan-overlay");
+    if (!overlay) return;
+    if (window.innerHeight > window.innerWidth) {
+        overlay.classList.add("portrait");
+    } else {
+        overlay.classList.remove("portrait");
+    }
+}
+window.addEventListener("resize", updateScanOrientation);
+
 // ── Mobile Camera Scanning ────────────────────────────────────────────────
 let activeField = null;
 let codeReader = null;
@@ -424,6 +445,7 @@ async function startScan(fieldId) {
     modal.classList.remove("hidden");
     resultEl.textContent = "";
     resultEl.className = "";
+    updateScanOrientation();
 
     try {
         codeReader = new ZXing.BrowserBarcodeReader();
@@ -441,7 +463,7 @@ async function startScan(fieldId) {
 
         codeReader.decodeFromStream(stream, video, (result, err) => {
             if (result) {
-                const value = result.getText();
+                const value = result.getText().toUpperCase();
                 document.getElementById(activeField).value = value;
                 if (activeField === "serial") {
                     document.getElementById("serial").dispatchEvent(new Event("input"));
