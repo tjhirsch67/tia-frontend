@@ -448,9 +448,19 @@ if (screen.orientation) {
 let activeField = null;
 let scanStream = null;
 let scanAnimFrame = null;
-let scanCanvas = document.createElement("canvas");
-let scanCtx = scanCanvas.getContext("2d");
-let zxingReader = null;
+
+const hasBarcodeDetector = "BarcodeDetector" in window;
+let barcodeDetector = null;
+
+if (hasBarcodeDetector) {
+    barcodeDetector = new BarcodeDetector({
+        formats: [
+            "code_128", "code_39", "code_93", "codabar",
+            "ean_13", "ean_8", "upc_a", "upc_e",
+            "qr_code", "pdf417", "aztec", "data_matrix"
+        ]
+    });
+}
 
 async function startScan(fieldId) {
     activeField = fieldId;
@@ -462,14 +472,11 @@ async function startScan(fieldId) {
     updateScanOrientation();
 
     try {
-        // Load ZXing reader
-        zxingReader = new ZXing.BrowserMultiFormatReader();
-
         scanStream = await navigator.mediaDevices.getUserMedia({
             video: {
                 facingMode: { ideal: "environment" },
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
             }
         });
 
@@ -477,50 +484,39 @@ async function startScan(fieldId) {
         video.srcObject = scanStream;
         await video.play();
 
-        // Wait for video to have data
         await new Promise(resolve => {
             video.addEventListener("loadeddata", resolve, { once: true });
         });
 
-        function processFrame() {
-            if (!scanStream) return;
-
-            const portrait = isPortrait();
-            updateScanOrientation();
-
-            const vw = video.videoWidth;
-            const vh = video.videoHeight;
-            if (!vw || !vh) {
-                scanAnimFrame = requestAnimationFrame(processFrame);
-                return;
+        if (hasBarcodeDetector) {
+            // Use native BarcodeDetector (Android Chrome)
+            async function detectFrame() {
+                if (!scanStream) return;
+                updateScanOrientation();
+                try {
+                    const barcodes = await barcodeDetector.detect(video);
+                    if (barcodes.length > 0) {
+                        const value = barcodes[0].rawValue.toUpperCase();
+                        document.getElementById(activeField).value = value;
+                        if (activeField === "serial") {
+                            document.getElementById("serial").dispatchEvent(new Event("input"));
+                        }
+                        resultEl.textContent = `✓ Scanned: ${value}`;
+                        resultEl.className = "field-notice success";
+                        setTimeout(() => stopScan(), 1200);
+                        return;
+                    }
+                } catch (e) {
+                    // No barcode detected in this frame
+                }
+                scanAnimFrame = requestAnimationFrame(detectFrame);
             }
+            scanAnimFrame = requestAnimationFrame(detectFrame);
 
-            // Draw frame to canvas — rotate 90° CCW if portrait
-            if (portrait) {
-                scanCanvas.width = vh;
-                scanCanvas.height = vw;
-                scanCtx.save();
-                scanCtx.translate(0, vw);
-                scanCtx.rotate(-Math.PI / 2);
-                scanCtx.drawImage(video, 0, 0, vw, vh);
-                scanCtx.restore();
-            } else {
-                scanCanvas.width = vw;
-                scanCanvas.height = vh;
-                scanCtx.drawImage(video, 0, 0, vw, vh);
-            }
-
-            // Try to decode from canvas image data
-            try {
-                const imgData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-                const luminance = new ZXing.RGBLuminanceSource(
-                    imgData.data,
-                    scanCanvas.width,
-                    scanCanvas.height
-                );
-                const binary = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-                const result = new ZXing.MultiFormatReader().decode(binary);
-
+        } else {
+            // Fallback: ZXing for iOS
+            const codeReader = new ZXing.BrowserBarcodeReader();
+            codeReader.decodeFromStream(scanStream, video, (result, err) => {
                 if (result) {
                     const value = result.getText().toUpperCase();
                     document.getElementById(activeField).value = value;
@@ -530,21 +526,13 @@ async function startScan(fieldId) {
                     resultEl.textContent = `✓ Scanned: ${value}`;
                     resultEl.className = "field-notice success";
                     setTimeout(() => stopScan(), 1200);
-                    return;
                 }
-            } catch (e) {
-                // No barcode in this frame — keep scanning
-            }
-
-            scanAnimFrame = requestAnimationFrame(processFrame);
+            });
         }
 
-        scanAnimFrame = requestAnimationFrame(processFrame);
-
     } catch (err) {
-        document.getElementById("scanResult").textContent =
-            `Camera error: ${err.message || "Permission denied or not available."}`;
-        document.getElementById("scanResult").className = "field-notice error";
+        resultEl.textContent = `Camera error: ${err.message || "Permission denied or not available."}`;
+        resultEl.className = "field-notice error";
     }
 }
 
