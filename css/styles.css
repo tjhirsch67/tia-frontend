@@ -587,12 +587,12 @@ tbody td {
     width: 100%;
     display: block;
     border-radius: 6px;
-    height: 240px;
+    height: 300px;
     object-fit: cover;
 }
 
 .scan-overlay.portrait video {
-    height: 380px;
+    height: 420px;
 }
 
 .scan-target {
@@ -600,11 +600,16 @@ tbody td {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 75%;
-    height: 100px;
-    border: 2px solid rgba(255, 255, 255, 0.8);
+    width: 88%;
+    height: 140px;
+    border: 2px solid rgba(255, 255, 255, 0.9);
     border-radius: 8px;
     box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.45);
+}
+
+.scan-overlay.portrait .scan-target {
+    width: 70%;
+    height: 260px;
 }
 
 .scan-overlay.portrait .scan-target {
