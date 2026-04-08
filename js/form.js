@@ -10,7 +10,6 @@ if (role === "admin") {
     document.getElementById("navAdmin").classList.remove("hidden");
 }
 
-// Hamburger menu
 document.getElementById("hamburger").addEventListener("click", () => {
     document.getElementById("mainNav").classList.toggle("open");
 });
@@ -51,9 +50,7 @@ function setupCombobox(inputId, dropdownId, getOptions, onSelect) {
     input.addEventListener("input", () => {
         if (!comboboxEnabled) return;
         const q = input.value.trim().toLowerCase();
-        const options = getOptions().filter(o =>
-            o.toLowerCase().includes(q)
-        );
+        const options = getOptions().filter(o => o.toLowerCase().includes(q));
         renderCombobox(dropdown, options, (val) => {
             input.value = val;
             dropdown.classList.add("hidden");
@@ -422,21 +419,57 @@ function clearForm() {
 
 document.getElementById("clearBtn").addEventListener("click", clearForm);
 
-// ── Orientation Detection for Scanner ────────────────────────────────────
+// ── Orientation Detection ─────────────────────────────────────────────────
+function isPortrait() {
+    if (screen.orientation) {
+        const angle = screen.orientation.angle;
+        return angle === 0 || angle === 180;
+    }
+    return window.innerHeight > window.innerWidth;
+}
+
 function updateScanOrientation() {
     const overlay = document.querySelector(".scan-overlay");
     if (!overlay) return;
-    if (window.innerHeight > window.innerWidth) {
+    if (isPortrait()) {
         overlay.classList.add("portrait");
     } else {
         overlay.classList.remove("portrait");
     }
 }
-window.addEventListener("resize", updateScanOrientation);
+
+if (screen.orientation) {
+    screen.orientation.addEventListener("change", updateScanOrientation);
+} else {
+    window.addEventListener("resize", updateScanOrientation);
+}
 
 // ── Mobile Camera Scanning ────────────────────────────────────────────────
 let activeField = null;
 let codeReader = null;
+let scanCanvas = null;
+let scanAnimFrame = null;
+
+function getRotatedCanvas(video, portrait) {
+    if (!scanCanvas) scanCanvas = document.createElement("canvas");
+    if (portrait) {
+        scanCanvas.width = video.videoHeight;
+        scanCanvas.height = video.videoWidth;
+        const ctx = scanCanvas.getContext("2d");
+        ctx.clearRect(0, 0, scanCanvas.width, scanCanvas.height);
+        ctx.save();
+        ctx.translate(scanCanvas.width / 2, scanCanvas.height / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.drawImage(video, -video.videoWidth / 2, -video.videoHeight / 2);
+        ctx.restore();
+    } else {
+        scanCanvas.width = video.videoWidth;
+        scanCanvas.height = video.videoHeight;
+        const ctx = scanCanvas.getContext("2d");
+        ctx.drawImage(video, 0, 0);
+    }
+    return scanCanvas;
+}
 
 async function startScan(fieldId) {
     activeField = fieldId;
@@ -448,7 +481,7 @@ async function startScan(fieldId) {
     updateScanOrientation();
 
     try {
-        codeReader = new ZXing.BrowserBarcodeReader();
+        codeReader = new ZXing.BrowserMultiFormatReader();
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
                 facingMode: { ideal: "environment" },
@@ -461,18 +494,42 @@ async function startScan(fieldId) {
         video.srcObject = stream;
         await video.play();
 
-        codeReader.decodeFromStream(stream, video, (result, err) => {
-            if (result) {
-                const value = result.getText().toUpperCase();
-                document.getElementById(activeField).value = value;
-                if (activeField === "serial") {
-                    document.getElementById("serial").dispatchEvent(new Event("input"));
+        function scanFrame() {
+            if (!codeReader) return;
+            const portrait = isPortrait();
+            updateScanOrientation();
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                try {
+                    const canvas = getRotatedCanvas(video, portrait);
+                    const imageData = canvas.getContext("2d")
+                        .getImageData(0, 0, canvas.width, canvas.height);
+                    const luminanceSource = new ZXing.RGBLuminanceSource(
+                        imageData.data, canvas.width, canvas.height
+                    );
+                    const binaryBitmap = new ZXing.BinaryBitmap(
+                        new ZXing.HybridBinarizer(luminanceSource)
+                    );
+                    const result = codeReader.decodeBitmap(binaryBitmap);
+                    if (result) {
+                        const value = result.getText().toUpperCase();
+                        document.getElementById(activeField).value = value;
+                        if (activeField === "serial") {
+                            document.getElementById("serial").dispatchEvent(new Event("input"));
+                        }
+                        resultEl.textContent = `✓ Scanned: ${value}`;
+                        resultEl.className = "field-notice success";
+                        setTimeout(() => stopScan(), 1200);
+                        return;
+                    }
+                } catch (e) {
+                    // No barcode found in this frame — continue scanning
                 }
-                resultEl.textContent = `✓ Scanned: ${value}`;
-                resultEl.className = "field-notice success";
-                setTimeout(() => stopScan(), 1200);
             }
-        });
+            scanAnimFrame = requestAnimationFrame(scanFrame);
+        }
+
+        scanAnimFrame = requestAnimationFrame(scanFrame);
 
     } catch (err) {
         resultEl.textContent = `Camera error: ${err.message || "Permission denied or not available."}`;
@@ -481,6 +538,10 @@ async function startScan(fieldId) {
 }
 
 function stopScan() {
+    if (scanAnimFrame) {
+        cancelAnimationFrame(scanAnimFrame);
+        scanAnimFrame = null;
+    }
     if (codeReader) {
         codeReader.reset();
         codeReader = null;
