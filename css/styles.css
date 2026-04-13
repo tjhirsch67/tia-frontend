@@ -678,3 +678,32 @@ tbody td {
     color: #999;
     font-style: italic;
 }
+
+/* ── Password Toggle ──────────────────────────────────────────────────────── */
+.password-wrapper {
+    position: relative;
+}
+
+.password-wrapper input {
+    width: 100%;
+    padding-right: 44px;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #888;
+    font-size: 1.1rem;
+    padding: 4px;
+    line-height: 1;
+    transition: color 0.15s;
+}
+
+.password-toggle:hover {
+    color: #2E74B5;
+}
