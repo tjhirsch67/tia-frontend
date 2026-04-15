@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Tech Install Form</title>
     <link rel="stylesheet" href="css/styles.css">
-    <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 </head>
 <body>
 
@@ -177,30 +176,29 @@
             </div>
         </div>
 
+        <div class="card">
+            <div class="card-title">Additional Fields</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="mdmNumber">MDM #</label>
+                    <input type="text" id="mdmNumber" placeholder="00576158">
+                    <div class="field-notice" style="margin-top:4px;">MDM prefix added automatically</div>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" placeholder="Add any notes here..." rows="2" style="width:100%; padding:9px 12px; border:1px solid #ccd6e0; border-radius:6px; font-size:0.95rem; font-family:inherit; resize:vertical;"></textarea>
+                </div>
+            </div>
+        </div>
+
         <div style="display:flex; gap:12px; margin-bottom:40px;">
             <button class="btn btn-primary" id="submitBtn" style="flex:1;">Submit</button>
             <button class="btn btn-secondary" id="clearBtn">Clear Form</button>
         </div>
     </div>
 
-    <!-- Camera Modal -->
-    <div id="cameraModal" class="modal-overlay hidden">
-        <div class="modal">
-            <h3>Scan Barcode</h3>
-            <div class="scan-overlay">
-                <video id="cameraStream" autoplay playsinline></video>
-                <div class="scan-target">
-                    <div class="scan-line"></div>
-                </div>
-            </div>
-            <p class="scan-hint">Center the barcode within the frame</p>
-            <div id="scanResult" style="margin-top:10px;"></div>
-            <div class="modal-actions" style="margin-top:12px;">
-                <button class="btn btn-secondary" id="cancelScanBtn">Cancel</button>
-                <button class="btn btn-primary" id="manualEntryBtn">Enter Manually</button>
-            </div>
-        </div>
-    </div>
+    <!-- Hidden file input for native camera barcode scanning -->
+    <input type="file" id="barcodeCapture" accept="image/*" capture="environment" style="display:none;">
 
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>

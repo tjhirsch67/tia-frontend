@@ -32,6 +32,26 @@ setToday();
     });
 });
 
+// ── MDM # Auto-prefix ─────────────────────────────────────────────────────
+const mdmInput = document.getElementById("mdmNumber");
+mdmInput.addEventListener("focus", () => {
+    if (!mdmInput.value.startsWith("MDM")) {
+        mdmInput.value = "MDM";
+    }
+});
+mdmInput.addEventListener("input", () => {
+    if (!mdmInput.value.startsWith("MDM")) {
+        mdmInput.value = "MDM";
+    }
+    const suffix = mdmInput.value.slice(3).toUpperCase().replace(/[^0-9A-Z]/g, "");
+    mdmInput.value = "MDM" + suffix;
+});
+mdmInput.addEventListener("keydown", (e) => {
+    if (mdmInput.selectionStart <= 3 && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+    }
+});
+
 // ── Manufacturer / Model Combobox ─────────────────────────────────────────
 let allMfrModels = [];
 let comboboxEnabled = false;
@@ -362,6 +382,9 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     btn.disabled = true;
     btn.textContent = "Submitting...";
 
+    const mdmRaw = document.getElementById("mdmNumber").value.trim();
+    const mdmValue = mdmRaw === "MDM" || mdmRaw === "" ? null : mdmRaw;
+
     const payload = {
         date: new Date().toISOString(),
         service_type: document.getElementById("serviceType").value,
@@ -382,6 +405,8 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         zip: document.getElementById("zip").value.trim() || null,
         floor: document.getElementById("floor").value.trim() || null,
         room: document.getElementById("room").value.trim() || null,
+        mdm_number: mdmValue,
+        notes: document.getElementById("notes").value.trim() || null,
     };
 
     const res = await Auth.apiCall("POST", "/submissions/", payload);
@@ -405,8 +430,12 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
 function clearForm() {
     const fields = ["serial", "asset", "mercyId", "manufacturer", "model",
                     "endUser", "phone", "ip", "location", "locationManual",
-                    "address", "city", "state", "zip", "floor", "room"];
-    fields.forEach(f => document.getElementById(f).value = "");
+                    "address", "city", "state", "zip", "floor", "room",
+                    "mdmNumber", "notes"];
+    fields.forEach(f => {
+        const el = document.getElementById(f);
+        if (el) el.value = "";
+    });
     document.getElementById("serviceType").value = "";
     document.getElementById("atr").value = "";
     document.getElementById("serialNotice").classList.add("hidden");
@@ -419,81 +448,52 @@ function clearForm() {
 
 document.getElementById("clearBtn").addEventListener("click", clearForm);
 
-// ── Orientation Detection ─────────────────────────────────────────────────
-function updateScanOrientation() {
-    const overlay = document.querySelector(".scan-overlay");
-    if (!overlay) return;
-    if (window.innerHeight > window.innerWidth) {
-        overlay.classList.add("portrait");
-    } else {
-        overlay.classList.remove("portrait");
-    }
-}
-window.addEventListener("resize", updateScanOrientation);
-
-// ── Mobile Camera Scanning ────────────────────────────────────────────────
+// ── Native Camera Barcode Scanning ────────────────────────────────────────
 let activeField = null;
-let codeReader = null;
+const barcodeCapture = document.getElementById("barcodeCapture");
+const hasBarcodeDetector = "BarcodeDetector" in window;
 
-async function startScan(fieldId) {
+function startScan(fieldId) {
     activeField = fieldId;
-    const modal = document.getElementById("cameraModal");
-    const resultEl = document.getElementById("scanResult");
-    modal.classList.remove("hidden");
-    resultEl.textContent = "";
-    resultEl.className = "";
-    updateScanOrientation();
+    barcodeCapture.value = "";
+    barcodeCapture.click();
+}
 
-    try {
-        codeReader = new ZXing.BrowserMultiFormatReader();
+barcodeCapture.addEventListener("change", async () => {
+    if (!barcodeCapture.files || !barcodeCapture.files[0]) return;
+    const file = barcodeCapture.files[0];
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: { ideal: "environment" },
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            }
-        });
-
-        const video = document.getElementById("cameraStream");
-        video.srcObject = stream;
-        await video.play();
-
-        codeReader.decodeFromStream(stream, video, (result, err) => {
-            if (result) {
-                const value = result.getText().toUpperCase();
+    if (hasBarcodeDetector) {
+        try {
+            const bitmap = await createImageBitmap(file);
+            const detector = new BarcodeDetector({
+                formats: [
+                    "code_128", "code_39", "code_93", "codabar",
+                    "ean_13", "ean_8", "upc_a", "upc_e", "pdf417"
+                ]
+            });
+            const barcodes = await detector.detect(bitmap);
+            if (barcodes.length > 0) {
+                const value = barcodes[0].rawValue.toUpperCase();
                 document.getElementById(activeField).value = value;
                 if (activeField === "serial") {
                     document.getElementById("serial").dispatchEvent(new Event("input"));
                 }
-                resultEl.textContent = `✓ Scanned: ${value}`;
-                resultEl.className = "field-notice success";
-                setTimeout(() => stopScan(), 1200);
+            } else {
+                alert("No barcode detected. Please try again or enter manually.");
             }
-        });
+        } catch (err) {
+            alert("Could not read barcode. Please enter manually.");
+        }
+    } else {
+        // iOS fallback — show image preview and ask to type
+        alert("Barcode detection not supported on this browser. Please enter the value manually.");
+    }
 
-    } catch (err) {
-        resultEl.textContent = `Camera error: ${err.message || "Permission denied or not available."}`;
-        resultEl.className = "field-notice error";
-    }
-}
-
-function stopScan() {
-    if (codeReader) {
-        codeReader.reset();
-        codeReader = null;
-    }
-    const video = document.getElementById("cameraStream");
-    if (video.srcObject) {
-        video.srcObject.getTracks().forEach(t => t.stop());
-        video.srcObject = null;
-    }
-    document.getElementById("cameraModal").classList.add("hidden");
+    barcodeCapture.value = "";
     activeField = null;
-}
+});
 
-document.getElementById("cancelScanBtn").addEventListener("click", stopScan);
-document.getElementById("manualEntryBtn").addEventListener("click", stopScan);
 document.getElementById("scanSerialBtn").addEventListener("click", () => startScan("serial"));
 document.getElementById("scanAssetBtn").addEventListener("click", () => startScan("asset"));
 document.getElementById("scanMercyBtn").addEventListener("click", () => startScan("mercyId"));
