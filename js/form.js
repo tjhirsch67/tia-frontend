@@ -14,6 +14,35 @@ document.getElementById("hamburger").addEventListener("click", () => {
     document.getElementById("mainNav").classList.toggle("open");
 });
 
+// ── Device Detection ──────────────────────────────────────────────────────
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isAndroid = /Android/i.test(navigator.userAgent);
+const isMobile = isIOS || isAndroid;
+
+// Hide scan buttons on desktop
+if (!isMobile) {
+    ["scanSerialBtn", "scanAssetBtn", "scanMercyBtn"].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.style.display = "none";
+    });
+}
+
+// Dynamically load ZXing for iOS only
+let zxingLoaded = false;
+function loadZXing() {
+    return new Promise((resolve) => {
+        if (zxingLoaded || typeof ZXing !== "undefined") {
+            zxingLoaded = true;
+            resolve();
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js";
+        script.onload = () => { zxingLoaded = true; resolve(); };
+        document.head.appendChild(script);
+    });
+}
+
 // ── Date ──────────────────────────────────────────────────────────────────
 function setToday() {
     const today = new Date();
@@ -184,10 +213,12 @@ function unlockDeviceFields() {
         el.readOnly = false;
         el.classList.remove("auto-filled");
     });
-    ["scanAssetBtn", "scanMercyBtn"].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.style.display = "";
-    });
+    if (isMobile) {
+        ["scanAssetBtn", "scanMercyBtn"].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.style.display = "";
+        });
+    }
     enableComboboxes();
 }
 
@@ -448,13 +479,22 @@ function clearForm() {
 
 document.getElementById("clearBtn").addEventListener("click", clearForm);
 
-// ── Native Camera Barcode Scanning ────────────────────────────────────────
+// ── Scanning Router ───────────────────────────────────────────────────────
 let activeField = null;
-const barcodeCapture = document.getElementById("barcodeCapture");
-const hasBarcodeDetector = "BarcodeDetector" in window;
 
 function startScan(fieldId) {
     activeField = fieldId;
+    if (isIOS) {
+        startIOSScan(fieldId);
+    } else {
+        startAndroidScan(fieldId);
+    }
+}
+
+// ── Android — Native Camera Capture ──────────────────────────────────────
+const barcodeCapture = document.getElementById("barcodeCapture");
+
+function startAndroidScan(fieldId) {
     barcodeCapture.value = "";
     barcodeCapture.click();
 }
@@ -463,7 +503,7 @@ barcodeCapture.addEventListener("change", async () => {
     if (!barcodeCapture.files || !barcodeCapture.files[0]) return;
     const file = barcodeCapture.files[0];
 
-    if (hasBarcodeDetector) {
+    if ("BarcodeDetector" in window) {
         try {
             const bitmap = await createImageBitmap(file);
             const detector = new BarcodeDetector({
@@ -486,14 +526,76 @@ barcodeCapture.addEventListener("change", async () => {
             alert("Could not read barcode. Please enter manually.");
         }
     } else {
-        // iOS fallback — show image preview and ask to type
-        alert("Barcode detection not supported on this browser. Please enter the value manually.");
+        alert("Barcode detection not supported. Please enter manually.");
     }
 
     barcodeCapture.value = "";
     activeField = null;
 });
 
+// ── iOS — ZXing Video Stream ──────────────────────────────────────────────
+let codeReader = null;
+
+async function startIOSScan(fieldId) {
+    await loadZXing();
+
+    const modal = document.getElementById("cameraModal");
+    const resultEl = document.getElementById("scanResult");
+    modal.classList.remove("hidden");
+    resultEl.textContent = "";
+    resultEl.className = "";
+
+    try {
+        codeReader = new ZXing.BrowserMultiFormatReader();
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        });
+
+        const video = document.getElementById("cameraStream");
+        video.srcObject = stream;
+        await video.play();
+
+        codeReader.decodeFromStream(stream, video, (result, err) => {
+            if (result) {
+                const value = result.getText().toUpperCase();
+                document.getElementById(activeField).value = value;
+                if (activeField === "serial") {
+                    document.getElementById("serial").dispatchEvent(new Event("input"));
+                }
+                resultEl.textContent = `✓ Scanned: ${value}`;
+                resultEl.className = "field-notice success";
+                setTimeout(() => stopIOSScan(), 1200);
+            }
+        });
+
+    } catch (err) {
+        resultEl.textContent = `Camera error: ${err.message || "Permission denied or not available."}`;
+        resultEl.className = "field-notice error";
+    }
+}
+
+function stopIOSScan() {
+    if (codeReader) {
+        codeReader.reset();
+        codeReader = null;
+    }
+    const video = document.getElementById("cameraStream");
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+    }
+    document.getElementById("cameraModal").classList.add("hidden");
+    activeField = null;
+}
+
+document.getElementById("cancelScanBtn").addEventListener("click", stopIOSScan);
+document.getElementById("manualEntryBtn").addEventListener("click", stopIOSScan);
+
+// ── Scan Button Listeners ─────────────────────────────────────────────────
 document.getElementById("scanSerialBtn").addEventListener("click", () => startScan("serial"));
 document.getElementById("scanAssetBtn").addEventListener("click", () => startScan("asset"));
 document.getElementById("scanMercyBtn").addEventListener("click", () => startScan("mercyId"));

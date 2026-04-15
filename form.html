@@ -197,7 +197,26 @@
         </div>
     </div>
 
-    <!-- Hidden file input for native camera barcode scanning -->
+    <!-- iOS ZXing Camera Modal -->
+    <div id="cameraModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>Scan Barcode</h3>
+            <div class="scan-overlay">
+                <video id="cameraStream" autoplay playsinline></video>
+                <div class="scan-target">
+                    <div class="scan-line"></div>
+                </div>
+            </div>
+            <p class="scan-hint">Center the barcode within the frame</p>
+            <div id="scanResult" style="margin-top:10px;"></div>
+            <div class="modal-actions" style="margin-top:12px;">
+                <button class="btn btn-secondary" id="cancelScanBtn">Cancel</button>
+                <button class="btn btn-primary" id="manualEntryBtn">Enter Manually</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Android native camera capture -->
     <input type="file" id="barcodeCapture" accept="image/*" capture="environment" style="display:none;">
 
     <script src="js/config.js"></script>
