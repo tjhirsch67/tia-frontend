@@ -386,7 +386,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     const mdmValue = mdmRaw === "MDM" || mdmRaw === "" ? null : mdmRaw;
 
     const payload = {
-        date: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString(),
+        date: new Date().toLocaleDateString("en-CA") + "T00:00:00",
         service_type: document.getElementById("serviceType").value,
         serial: document.getElementById("serial").value.trim(),
         asset: document.getElementById("asset").value.trim() || null,
