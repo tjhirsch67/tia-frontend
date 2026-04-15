@@ -19,7 +19,7 @@ async function loadLastRun() {
     const data = await res.json();
     const el = document.getElementById("lastRunInfo");
     if (data.last_export) {
-        const date = new Date(data.last_export).toLocaleString("en-US");
+        const date = new Date(data.last_export + "Z").toLocaleString("en-US");
         el.innerHTML = `
             <p>Last export: <strong>${date}</strong></p>
             <p style="margin-top:6px;">Unreported records: <strong>${data.unreported_count}</strong></p>
