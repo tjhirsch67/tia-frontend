@@ -19,9 +19,8 @@ const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const isAndroid = /Android/i.test(navigator.userAgent);
 const isMobile = isIOS || isAndroid;
 
-// Hide scan buttons on desktop
 if (!isMobile) {
-    ["scanSerialBtn", "scanAssetBtn", "scanMercyBtn"].forEach(id => {
+    ["scanSerialBtn", "scanAssetBtn", "scanMercyBtn", "scanMdmBtn"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.style.display = "none";
     });
@@ -53,7 +52,7 @@ function setToday() {
 setToday();
 
 // ── Uppercase Fields ──────────────────────────────────────────────────────
-["serial", "mercyId", "asset"].forEach(id => {
+["serial", "mercyId", "asset", "mdmNumber"].forEach(id => {
     document.getElementById(id).addEventListener("input", (e) => {
         const pos = e.target.selectionStart;
         e.target.value = e.target.value.toUpperCase();
@@ -61,29 +60,9 @@ setToday();
     });
 });
 
-// ── MDM # Auto-prefix ─────────────────────────────────────────────────────
-const mdmInput = document.getElementById("mdmNumber");
-mdmInput.addEventListener("focus", () => {
-    if (!mdmInput.value.startsWith("MDM")) {
-        mdmInput.value = "MDM";
-    }
-});
-mdmInput.addEventListener("input", () => {
-    if (!mdmInput.value.startsWith("MDM")) {
-        mdmInput.value = "MDM";
-    }
-    const suffix = mdmInput.value.slice(3).toUpperCase().replace(/[^0-9A-Z]/g, "");
-    mdmInput.value = "MDM" + suffix;
-});
-mdmInput.addEventListener("keydown", (e) => {
-    if (mdmInput.selectionStart <= 3 && (e.key === "Backspace" || e.key === "Delete")) {
-        e.preventDefault();
-    }
-});
-
 // ── Manufacturer / Model Combobox ─────────────────────────────────────────
 let allMfrModels = [];
-let comboboxEnabled = false;
+let comboboxEnabled = true;
 
 async function loadMfrModels() {
     const res = await Auth.apiCall("GET", "/mfr-models/");
@@ -194,34 +173,6 @@ loadMfrModels();
 // ── Serial Lookup ─────────────────────────────────────────────────────────
 const deviceFields = ["asset", "mercyId", "manufacturer", "model"];
 
-function lockDeviceFields() {
-    deviceFields.forEach(f => {
-        const el = document.getElementById(f);
-        el.readOnly = true;
-        el.classList.add("auto-filled");
-    });
-    ["scanAssetBtn", "scanMercyBtn"].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.style.display = "none";
-    });
-    disableComboboxes();
-}
-
-function unlockDeviceFields() {
-    deviceFields.forEach(f => {
-        const el = document.getElementById(f);
-        el.readOnly = false;
-        el.classList.remove("auto-filled");
-    });
-    if (isMobile) {
-        ["scanAssetBtn", "scanMercyBtn"].forEach(id => {
-            const btn = document.getElementById(id);
-            if (btn) btn.style.display = "";
-        });
-    }
-    enableComboboxes();
-}
-
 function clearDeviceFields() {
     deviceFields.forEach(f => document.getElementById(f).value = "");
     selectedManufacturer = "";
@@ -235,7 +186,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
     if (!serial) {
         notice.classList.add("hidden");
         clearDeviceFields();
-        unlockDeviceFields();
+        enableComboboxes();
         return;
     }
     serialLookupTimeout = setTimeout(async () => {
@@ -247,13 +198,13 @@ document.getElementById("serial").addEventListener("input", (e) => {
             document.getElementById("manufacturer").value = data.manufacturer || "";
             document.getElementById("model").value = data.model || "";
             selectedManufacturer = data.manufacturer || "";
-            lockDeviceFields();
-            notice.textContent = "✓ Device found in CMDB";
+            notice.textContent = "✓ Device found in CMDB — fields auto-populated, update any if needed";
             notice.className = "field-notice success";
             notice.classList.remove("hidden");
+            enableComboboxes();
         } else if (res && res.status === 404) {
             clearDeviceFields();
-            unlockDeviceFields();
+            enableComboboxes();
             notice.textContent = "Not found in CMDB — enter details manually";
             notice.className = "field-notice warning";
             notice.classList.remove("hidden");
@@ -413,16 +364,20 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     btn.disabled = true;
     btn.textContent = "Submitting...";
 
-    const mdmRaw = document.getElementById("mdmNumber").value.trim();
-    const mdmValue = mdmRaw === "MDM" || mdmRaw === "" ? null : mdmRaw;
+    // ── Lexmark S-strip ───────────────────────────────────────────────────
+    let serial = document.getElementById("serial").value.trim();
+    const manufacturer = document.getElementById("manufacturer").value.trim();
+    if (manufacturer.toLowerCase() === "lexmark" && serial.toUpperCase().startsWith("S")) {
+        serial = serial.slice(1);
+    }
 
     const payload = {
         date: new Date().toLocaleDateString("en-CA") + "T00:00:00",
         service_type: document.getElementById("serviceType").value,
-        serial: document.getElementById("serial").value.trim(),
+        serial: serial,
         asset: document.getElementById("asset").value.trim() || null,
         mercy_id: document.getElementById("mercyId").value.trim() || null,
-        manufacturer: document.getElementById("manufacturer").value.trim() || null,
+        manufacturer: manufacturer || null,
         model: document.getElementById("model").value.trim() || null,
         end_user: document.getElementById("endUser").value.trim() || null,
         phone: document.getElementById("phone").value.trim() || null,
@@ -436,7 +391,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         zip: document.getElementById("zip").value.trim() || null,
         floor: document.getElementById("floor").value.trim() || null,
         room: document.getElementById("room").value.trim() || null,
-        mdm_number: mdmValue,
+        mdm_number: document.getElementById("mdmNumber").value.trim() || null,
         notes: document.getElementById("notes").value.trim() || null,
     };
 
@@ -471,8 +426,7 @@ function clearForm() {
     document.getElementById("atr").value = "";
     document.getElementById("serialNotice").classList.add("hidden");
     selectedManufacturer = "";
-    unlockDeviceFields();
-    disableComboboxes();
+    enableComboboxes();
     lockLocationFields();
     setToday();
 }
@@ -599,3 +553,4 @@ document.getElementById("manualEntryBtn").addEventListener("click", stopIOSScan)
 document.getElementById("scanSerialBtn").addEventListener("click", () => startScan("serial"));
 document.getElementById("scanAssetBtn").addEventListener("click", () => startScan("asset"));
 document.getElementById("scanMercyBtn").addEventListener("click", () => startScan("mercyId"));
+document.getElementById("scanMdmBtn").addEventListener("click", () => startScan("mdmNumber"));
