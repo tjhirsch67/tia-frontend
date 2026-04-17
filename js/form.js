@@ -60,6 +60,13 @@ setToday();
     });
 });
 
+// ── Strip spaces from MercyID in real time ────────────────────────────────
+document.getElementById("mercyId").addEventListener("input", (e) => {
+    const pos = e.target.selectionStart;
+    e.target.value = e.target.value.replace(/\s/g, "");
+    e.target.setSelectionRange(pos, pos);
+});
+
 // ── Manufacturer / Model Combobox ─────────────────────────────────────────
 let allMfrModels = [];
 let comboboxEnabled = true;
@@ -370,13 +377,14 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     if (manufacturer.toLowerCase() === "lexmark" && serial.toUpperCase().startsWith("S")) {
         serial = serial.slice(1);
     }
+    const mercyId = document.getElementById("mercyId").value.replace(/\s/g, "").trim();
 
     const payload = {
         date: new Date().toLocaleDateString("en-CA") + "T00:00:00",
         service_type: document.getElementById("serviceType").value,
         serial: serial,
         asset: document.getElementById("asset").value.trim() || null,
-        mercy_id: document.getElementById("mercyId").value.trim() || null,
+        mercy_id: mercyId || null,
         manufacturer: manufacturer || null,
         model: document.getElementById("model").value.trim() || null,
         end_user: document.getElementById("endUser").value.trim() || null,
