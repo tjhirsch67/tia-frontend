@@ -19,6 +19,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
         document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
         if (btn.dataset.tab === "users") loadUsers();
         if (btn.dataset.tab === "records") loadRecords();
+        if (btn.dataset.tab === "recipients") loadRecipients();
     });
 });
 
@@ -417,3 +418,58 @@ document.getElementById("mfrDeleteBtn").addEventListener("click", () => {
 
 document.getElementById("mfrExportBtn").addEventListener("click", () =>
     downloadCSV("/mfr-models/export", "mfr_models_export.csv", "mfrExportMsg"));
+
+// ── Recipients ────────────────────────────────────────────────────────────
+async function loadRecipients() {
+    const res = await Auth.apiCall("GET", "/email-reports/recipients");
+    if (!res || !res.ok) return;
+    const recipients = await res.json();
+    const tbody = document.getElementById("recipientsBody");
+    tbody.innerHTML = "";
+    if (!recipients.length) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#888;">No recipients configured</td></tr>`;
+        return;
+    }
+    recipients.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${r.email}</td>
+            <td>${r.created_date ? new Date(r.created_date + "Z").toLocaleDateString("en-US") : ""}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteRecipient(${r.id}, '${r.email}')">Remove</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+document.getElementById("addRecipientBtn").addEventListener("click", async () => {
+    const email = document.getElementById("newRecipientEmail").value.trim();
+    if (!email) {
+        showMsg("recipientMsg", "Please enter an email address.", true);
+        return;
+    }
+    const res = await Auth.apiCall("POST", "/email-reports/recipients", { email });
+    if (res && res.ok) {
+        showMsg("recipientMsg", `${email} added as a recipient.`);
+        document.getElementById("newRecipientEmail").value = "";
+        loadRecipients();
+    } else {
+        const err = await res.json();
+        showMsg("recipientMsg", err.detail || "Failed to add recipient.", true);
+    }
+});
+
+window.deleteRecipient = function(id, email) {
+    showConfirm(
+        "Remove Recipient",
+        `Remove ${email} from auto-report recipients?`,
+        async () => {
+            const res = await Auth.apiCall("DELETE", `/email-reports/recipients/${id}`);
+            if (res && res.ok) {
+                showMsg("recipientMsg", `${email} removed.`);
+                loadRecipients();
+            } else {
+                showMsg("recipientMsg", "Failed to remove recipient.", true);
+            }
+        }
+    );
+};

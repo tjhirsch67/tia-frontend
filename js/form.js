@@ -52,7 +52,7 @@ function setToday() {
 setToday();
 
 // ── Uppercase Fields ──────────────────────────────────────────────────────
-["serial", "mercyId", "asset", "mdmNumber"].forEach(id => {
+["serial", "mercyId", "asset", "mdmNumber", "queueName"].forEach(id => {
     document.getElementById(id).addEventListener("input", (e) => {
         const pos = e.target.selectionStart;
         e.target.value = e.target.value.toUpperCase();
@@ -400,6 +400,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         floor: document.getElementById("floor").value.trim() || null,
         room: document.getElementById("room").value.trim() || null,
         mdm_number: document.getElementById("mdmNumber").value.trim() || null,
+        queue_name: document.getElementById("queueName").value.trim() || null,
         notes: document.getElementById("notes").value.trim() || null,
     };
 
@@ -425,7 +426,7 @@ function clearForm() {
     const fields = ["serial", "asset", "mercyId", "manufacturer", "model",
                     "endUser", "phone", "ip", "location", "locationManual",
                     "address", "city", "state", "zip", "floor", "room",
-                    "mdmNumber", "notes"];
+                    "mdmNumber", "queueName", "notes"];
     fields.forEach(f => {
         const el = document.getElementById(f);
         if (el) el.value = "";

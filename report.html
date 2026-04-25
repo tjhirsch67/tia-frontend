@@ -73,7 +73,11 @@
             </div>
 
             <div id="reportError" class="error-message hidden"></div>
-            <button class="btn btn-primary" id="exportBtn">&#x2B07; Export to CSV</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-primary" id="exportBtn">&#x2B07; Export to CSV</button>
+                <button class="btn btn-secondary" id="emailExportBtn">&#x2709; Email Report</button>
+                <button class="btn btn-secondary" id="emailAutoBtn" style="display:none;">&#x2709; Send to Auto-Recipients</button>
+            </div>
         </div>
 
         <!-- ── Section 2: Device Lookup Report ────────────────────────── -->
@@ -99,7 +103,29 @@
             </div>
 
             <div id="lookupError" class="error-message hidden"></div>
-            <button class="btn btn-primary" id="lookupExportBtn">&#x2B07; Export to CSV</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-primary" id="lookupExportBtn">&#x2B07; Export to CSV</button>
+                <button class="btn btn-secondary" id="emailLookupBtn">&#x2709; Email Report</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Modal -->
+    <div id="emailModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 id="emailModalTitle">Email Report</h3>
+            <p style="font-size:0.88rem; color:#555; margin-bottom:12px;">
+                Enter one or more email addresses separated by commas.
+            </p>
+            <div class="form-group">
+                <label for="emailRecipients">Recipients</label>
+                <input type="text" id="emailRecipients" placeholder="e.g. user@mercy.net, user2@mercy.net">
+            </div>
+            <div id="emailModalMsg" class="hidden" style="margin-bottom:10px;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="emailModalCancel">Cancel</button>
+                <button class="btn btn-primary" id="emailModalSend">&#x2709; Send</button>
+            </div>
         </div>
     </div>
 

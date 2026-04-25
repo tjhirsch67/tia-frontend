@@ -34,6 +34,7 @@
             <button class="tab-btn" data-tab="locations">Locations</button>
             <button class="tab-btn" data-tab="records">Records</button>
             <button class="tab-btn" data-tab="users">Users</button>
+            <button class="tab-btn" data-tab="recipients">Recipients</button>
             <button class="tab-btn" data-tab="mfrmodels">Mfr-Models</button>
         </div>
 
@@ -259,6 +260,38 @@
         </div>
 
     </div>
+
+    <!-- ── Recipients Tab ─────────────────────────────────────────────── -->
+    <div id="tab-recipients" class="tab-content hidden">
+        <div class="card">
+            <div class="card-title">Auto-Report Recipients</div>
+            <p class="tab-desc">These email addresses automatically receive the Unreported Only report every time it is sent. Admin only.</p>
+
+            <div class="form-row" style="margin-bottom:16px;">
+                <div class="form-group">
+                    <label for="newRecipientEmail">Email Address</label>
+                    <input type="email" id="newRecipientEmail" placeholder="user@mercy.net">
+                </div>
+            </div>
+            <div id="recipientMsg" class="hidden" style="margin-bottom:10px;"></div>
+            <button class="btn btn-primary" id="addRecipientBtn" style="margin-bottom:20px;">Add Recipient</button>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email Address</th>
+                            <th>Added</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recipientsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    </div>    
 
     <!-- Confirm Modal -->
     <div id="confirmModal" class="modal-overlay hidden">

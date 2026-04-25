@@ -31,7 +31,27 @@
                 <button type="submit" class="btn btn-primary btn-full" id="loginBtn">Sign In</button>
             </form>
         </div>
-        <p class="login-footer">Mercy Health &mdash; Internal Use Only</p>
+        <p class="login-footer">Internal Use Only &nbsp;|&nbsp; <a href="#" id="legalLink" style="color:#888; font-size:0.85rem;">&#169; Legal</a></p>
+    </div>
+
+    <!-- Legal Modal -->
+    <div id="legalModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 style="color:#1F4E79; margin-bottom:16px;">Legal Notice</h3>
+            <p style="font-size:0.92rem; line-height:1.7; color:#333;">
+                TIA (Tech Install Application) is the proprietary software of <strong>Tim Hirsch</strong>. All rights reserved.
+            </p>
+            <p style="font-size:0.92rem; line-height:1.7; color:#333; margin-top:12px;">
+                This application and its contents are protected by copyright law. Access and use of this application is strictly limited to individuals who have received explicit written authorization from Tim Hirsch.
+            </p>
+            <p style="font-size:0.92rem; line-height:1.7; color:#333; margin-top:12px;">
+                Unauthorized access, reproduction, distribution, or use of this application or its contents is strictly prohibited and may result in civil and criminal penalties.
+            </p>
+            <p style="font-size:0.88rem; color:#888; margin-top:16px;">&copy; 2026 Tim Hirsch. All rights reserved.</p>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button class="btn btn-primary" id="legalClose">Close</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -87,6 +107,14 @@
 
             btn.disabled = false;
             btn.textContent = "Sign In";
+        });
+
+        document.getElementById("legalLink").addEventListener("click", (e) => {
+            e.preventDefault();
+            document.getElementById("legalModal").classList.remove("hidden");
+        });
+        document.getElementById("legalClose").addEventListener("click", () => {
+            document.getElementById("legalModal").classList.add("hidden");
         });
     </script>
 </body>
