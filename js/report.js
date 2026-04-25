@@ -173,7 +173,10 @@ document.getElementById("emailExportBtn").addEventListener("click", () => {
 
         const res = await fetch(`${CONFIG.API_BASE}/email-reports/send-export?${params.toString()}`, {
             method: "POST",
-            headers: { "Authorization": `Bearer ${Auth.getToken()}` }
+            headers: {
+                "Authorization": `Bearer ${Auth.getToken()}`,
+                "Content-Type": "application/json"
+            }
         });
 
         const data = await res.json();
@@ -264,7 +267,10 @@ document.getElementById("emailLookupBtn").addEventListener("click", () => {
 
         const res = await fetch(`${CONFIG.API_BASE}/email-reports/send-lookup?${params.toString()}`, {
             method: "POST",
-            headers: { "Authorization": `Bearer ${Auth.getToken()}` }
+            headers: {
+                "Authorization": `Bearer ${Auth.getToken()}`,
+                "Content-Type": "application/json"
+            }
         });
 
         const data = await res.json();

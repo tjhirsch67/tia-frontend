@@ -167,7 +167,7 @@ document.getElementById("locTemplateDl").addEventListener("click", (e) => {
 
 document.getElementById("recordsTemplateDl").addEventListener("click", (e) => {
     e.preventDefault();
-    const csv = "date,service_type,serial,asset,mercy_id,manufacturer,model,end_user,phone,atr,ip,location,location_manual,address,city,state,zip,floor,room\n2026-04-01,Install-New,SERIAL123,PRT001,12345678,HP,LaserJet M507,John Smith,314-555-1234,No,10.0.0.1,Mercy Hospital Example,,1701 Lacey Street,Cape Girardeau,MO,63701,1st,Main Pharmacy";
+    const csv = "date,service_type,serial,asset,mercy_id,manufacturer,model,end_user,phone,atr,ip,location,location_manual,address,city,state,zip,floor,room,mdm_number,queue_name,notes\n2026-04-01,Install-New,SERIAL123,PRT001,12345678,HP,LaserJet M507,John Smith,314-555-1234,No,10.0.0.1,Mercy Hospital Example,,1701 Lacey Street,Cape Girardeau,MO,63701,1st,Main Pharmacy,MDM00576158,MERCY-PRN-001,Sample note";
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
     a.download = "records_import_template.csv";
