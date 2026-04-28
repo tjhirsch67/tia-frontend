@@ -176,7 +176,7 @@ document.getElementById("recordsTemplateDl").addEventListener("click", (e) => {
 
 document.getElementById("mfrTemplateDl").addEventListener("click", (e) => {
     e.preventDefault();
-    const csv = "manufacturer,model\nHP,LaserJet M507\nKM,Bizhub C360i\nLexmark,MX622";
+    const csv = "manufacturer,model,model_class,model_type\nHP,LaserJet M507,Printer BW Low Volume,Printer-Mono\nKonica Minolta,bizhub C360i,MFP Color Low Volume,MFP-Color\nLexmark,MX622,MFP BW High Volume,MFP-Mono";
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
     a.download = "mfr_models_template.csv";
