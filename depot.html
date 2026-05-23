@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Depot Inventory</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=20260523">
 </head>
 <body>
 
@@ -43,8 +43,9 @@
                         <option value="">-- Select a depot --</option>
                     </select>
                 </div>
-                <div class="form-group" style="display:flex; align-items:flex-end;">
+                <div class="form-group" style="display:flex; align-items:flex-end; gap:8px;">
                     <button class="btn btn-secondary" id="refreshBtn" disabled>&#x21BB; Refresh</button>
+                    <button class="btn btn-primary" id="addDeviceBtn" disabled>&#x2795; Add Device</button>
                 </div>
             </div>
         </div>
@@ -141,8 +142,102 @@
         </div>
     </div>
 
-    <script src="js/config.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/depot.js"></script>
+    <!-- Add Device modal -->
+    <div id="addDeviceModal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:600px;">
+            <h3 style="color:#1F4E79; margin-bottom:4px;">Add Device to Depot</h3>
+            <p style="color:#666; font-size:0.85rem; margin-bottom:14px;">Adding to: <b id="addDestDepot"></b></p>
+
+            <div class="form-group">
+                <label for="addSerial">Serial Number <span class="required">*</span></label>
+                <div class="input-with-icon">
+                    <input type="text" id="addSerial" placeholder="Scan or type serial">
+                    <button type="button" class="scan-btn" id="addScanSerialBtn" title="Scan barcode">&#x1F4F7;</button>
+                </div>
+                <div id="addSerialNotice" class="field-notice hidden"></div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="addAsset">Asset Tag <span class="required">*</span></label>
+                    <div class="input-with-icon">
+                        <input type="text" id="addAsset" placeholder="Asset tag">
+                        <button type="button" class="scan-btn" id="addScanAssetBtn" title="Scan barcode">&#x1F4F7;</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="addMercyId">MercyID <span class="required">*</span></label>
+                    <div class="input-with-icon">
+                        <input type="text" id="addMercyId" placeholder="Mercy ID">
+                        <button type="button" class="scan-btn" id="addScanMercyBtn" title="Scan barcode">&#x1F4F7;</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="addManufacturer">Manufacturer <span class="required">*</span></label>
+                    <div class="combobox-wrapper">
+                        <input type="text" id="addManufacturer" placeholder="Type or select" autocomplete="off">
+                        <div id="addManufacturerDropdown" class="combobox-dropdown hidden"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="addModel">Model <span class="required">*</span></label>
+                    <div class="combobox-wrapper">
+                        <input type="text" id="addModel" placeholder="Type or select" autocomplete="off">
+                        <div id="addModelDropdown" class="combobox-dropdown hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="addStatus">Status <span class="required">*</span></label>
+                <select id="addStatus">
+                    <option value="In Stock">In Stock</option>
+                    <option value="In Maintenance">In Maintenance</option>
+                    <option value="Damaged In Transit">Damaged In Transit</option>
+                </select>
+                <p id="addStatusHint" style="color:#666; font-size:0.85rem; margin-top:6px;">Choosing <b>Damaged In Transit</b> will open a Damaged Claim in IMS and send the damaged-device email.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="addNotes">Notes (optional)</label>
+                <textarea id="addNotes" rows="2" placeholder="Optional notes"></textarea>
+            </div>
+
+            <div id="addError" class="error-message hidden"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="addCancel">Cancel</button>
+                <button class="btn btn-primary" id="addSave">Add Device</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- iOS ZXing Camera Modal -->
+    <div id="cameraModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>Scan Barcode</h3>
+            <div class="scan-overlay">
+                <video id="cameraStream" autoplay playsinline></video>
+                <div class="scan-target">
+                    <div class="scan-line"></div>
+                </div>
+            </div>
+            <p class="scan-hint">Center the barcode within the frame</p>
+            <div id="scanResult" style="margin-top:10px;"></div>
+            <div class="modal-actions" style="margin-top:12px;">
+                <button class="btn btn-secondary" id="cancelScanBtn">Cancel</button>
+                <button class="btn btn-primary" id="manualEntryBtn">Enter Manually</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Android native camera capture -->
+    <input type="file" id="barcodeCapture" accept="image/*" capture="environment" style="display:none;">
+
+    <script src="js/config.js?v=20260523"></script>
+    <script src="js/auth.js?v=20260523"></script>
+    <script src="js/depot.js?v=20260523"></script>
 </body>
 </html>

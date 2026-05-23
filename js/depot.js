@@ -28,6 +28,18 @@ let depotSites = [];
 let currentFacility = null;
 let inventoryRows = [];
 
+// CMDB-derived options for Mfr/Model comboboxes (Add Device modal)
+let cmdbManufacturers = [];
+let cmdbModelsCache = {}; // keyed by manufacturer (or "" for all)
+
+// Scan state
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isAndroid = /Android/i.test(navigator.userAgent);
+const isMobile = isIOS || isAndroid;
+let activeScanField = null;
+let zxingLoaded = false;
+let codeReader = null;
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function showError(msg) {
     const el = document.getElementById("pageError");
@@ -89,6 +101,24 @@ async function loadDepotSites() {
         opt.textContent = site.facility;
         sel.appendChild(opt);
     });
+}
+
+// ── Load CMDB manufacturers (for Add Device combobox) ──────────────────────
+async function loadCmdbManufacturers() {
+    const res = await Auth.apiCall("GET", "/cmdb/manufacturers");
+    if (!res || !res.ok) return;
+    cmdbManufacturers = await res.json();
+}
+
+async function loadCmdbModels(manufacturer) {
+    const key = manufacturer || "";
+    if (cmdbModelsCache[key]) return cmdbModelsCache[key];
+    const qs = manufacturer ? `?manufacturer=${encodeURIComponent(manufacturer)}` : "";
+    const res = await Auth.apiCall("GET", `/cmdb/models${qs}`);
+    if (!res || !res.ok) return [];
+    const models = await res.json();
+    cmdbModelsCache[key] = models;
+    return models;
 }
 
 // ── Load depot inventory ──────────────────────────────────────────────────
@@ -306,9 +336,11 @@ document.getElementById("depotSelect").addEventListener("change", e => {
     const facility = e.target.value;
     if (!facility) {
         document.getElementById("inventoryCard").style.display = "none";
+        document.getElementById("addDeviceBtn").disabled = true;
         currentFacility = null;
         return;
     }
+    document.getElementById("addDeviceBtn").disabled = false;
     loadDepotInventory(facility);
 });
 
@@ -316,4 +348,302 @@ document.getElementById("refreshBtn").addEventListener("click", () => {
     if (currentFacility) loadDepotInventory(currentFacility);
 });
 
+// ── Add Device modal ──────────────────────────────────────────────────────
+function openAddDeviceModal() {
+    if (!currentFacility) return;
+    document.getElementById("addDestDepot").textContent = currentFacility;
+    ["addSerial", "addAsset", "addMercyId", "addManufacturer", "addModel", "addNotes"].forEach(id => {
+        document.getElementById(id).value = "";
+    });
+    document.getElementById("addStatus").value = "In Stock";
+    document.getElementById("addSerialNotice").classList.add("hidden");
+    document.getElementById("addError").classList.add("hidden");
+    document.getElementById("addManufacturerDropdown").classList.add("hidden");
+    document.getElementById("addModelDropdown").classList.add("hidden");
+    document.getElementById("addDeviceModal").classList.remove("hidden");
+}
+
+document.getElementById("addDeviceBtn").addEventListener("click", openAddDeviceModal);
+document.getElementById("addCancel").addEventListener("click", () => {
+    document.getElementById("addDeviceModal").classList.add("hidden");
+});
+
+// Force uppercase on serial, asset, mercyId; strip spaces on mercyId
+["addSerial", "addAsset", "addMercyId"].forEach(id => {
+    document.getElementById(id).addEventListener("input", (e) => {
+        const pos = e.target.selectionStart;
+        e.target.value = e.target.value.toUpperCase();
+        e.target.setSelectionRange(pos, pos);
+    });
+});
+document.getElementById("addMercyId").addEventListener("input", (e) => {
+    const pos = e.target.selectionStart;
+    e.target.value = e.target.value.replace(/\s/g, "");
+    e.target.setSelectionRange(pos, pos);
+});
+
+// ── CMDB autofill on serial entry (debounced) ──────────────────────────────
+let serialLookupTimer = null;
+document.getElementById("addSerial").addEventListener("input", () => {
+    clearTimeout(serialLookupTimer);
+    const serial = document.getElementById("addSerial").value.trim();
+    const notice = document.getElementById("addSerialNotice");
+    if (!serial) {
+        notice.classList.add("hidden");
+        return;
+    }
+    serialLookupTimer = setTimeout(async () => {
+        const res = await Auth.apiCall("GET", `/cmdb/lookup/${encodeURIComponent(serial)}`);
+        if (res && res.ok) {
+            const data = await res.json();
+            document.getElementById("addAsset").value = (data.asset || "").toUpperCase();
+            document.getElementById("addMercyId").value = (data.mercy_id || "").replace(/\s/g, "");
+            document.getElementById("addManufacturer").value = data.manufacturer || "";
+            document.getElementById("addModel").value = data.model || "";
+            notice.textContent = "✓ Found in CMDB — fields auto-populated, update any if needed.";
+            notice.className = "field-notice success";
+            notice.classList.remove("hidden");
+        } else if (res && res.status === 404) {
+            notice.textContent = "Not found in CMDB — enter details manually.";
+            notice.className = "field-notice warning";
+            notice.classList.remove("hidden");
+        }
+    }, 400);
+});
+
+// ── Manufacturer / Model comboboxes ───────────────────────────────────────
+function renderCombobox(dropdown, options, onSelect) {
+    dropdown.innerHTML = "";
+    if (!options.length) {
+        const empty = document.createElement("div");
+        empty.className = "combobox-empty";
+        empty.textContent = "No matches — type to use custom value";
+        dropdown.appendChild(empty);
+    } else {
+        options.forEach(opt => {
+            const item = document.createElement("div");
+            item.className = "combobox-item";
+            item.textContent = opt;
+            item.addEventListener("click", () => onSelect(opt));
+            dropdown.appendChild(item);
+        });
+    }
+    dropdown.classList.remove("hidden");
+}
+
+function setupCombobox(inputId, dropdownId, getOptionsAsync, onSelect) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+
+    async function refresh() {
+        const q = input.value.trim().toLowerCase();
+        const all = await getOptionsAsync();
+        const filtered = q ? all.filter(o => o.toLowerCase().includes(q)) : all;
+        renderCombobox(dropdown, filtered, (val) => {
+            input.value = val;
+            dropdown.classList.add("hidden");
+            onSelect(val);
+        });
+    }
+    input.addEventListener("input", refresh);
+    input.addEventListener("focus", refresh);
+    document.addEventListener("click", (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add("hidden");
+        }
+    });
+}
+
+setupCombobox(
+    "addManufacturer",
+    "addManufacturerDropdown",
+    async () => { if (!cmdbManufacturers.length) await loadCmdbManufacturers(); return cmdbManufacturers; },
+    (val) => {
+        // Clear cached model list for the new manufacturer to force refresh
+        document.getElementById("addModel").value = "";
+        delete cmdbModelsCache[val];
+    }
+);
+
+setupCombobox(
+    "addModel",
+    "addModelDropdown",
+    async () => {
+        const mfr = document.getElementById("addManufacturer").value.trim();
+        return await loadCmdbModels(mfr);
+    },
+    () => {}
+);
+
+// ── Add Device save ───────────────────────────────────────────────────────
+document.getElementById("addSave").addEventListener("click", async () => {
+    const payload = {
+        facility:     currentFacility,
+        serial:       document.getElementById("addSerial").value.trim().toUpperCase(),
+        asset_tag:    document.getElementById("addAsset").value.trim().toUpperCase(),
+        mercy_id:     document.getElementById("addMercyId").value.trim().replace(/\s/g, ""),
+        manufacturer: document.getElementById("addManufacturer").value.trim(),
+        model:        document.getElementById("addModel").value.trim(),
+        status:       document.getElementById("addStatus").value,
+        notes:        document.getElementById("addNotes").value.trim() || null,
+    };
+
+    // Client-side required-field check
+    const missing = [];
+    if (!payload.serial)       missing.push("Serial");
+    if (!payload.asset_tag)    missing.push("Asset");
+    if (!payload.mercy_id)     missing.push("MercyID");
+    if (!payload.manufacturer) missing.push("Manufacturer");
+    if (!payload.model)        missing.push("Model");
+    const errDiv = document.getElementById("addError");
+    if (missing.length) {
+        errDiv.textContent = `Missing required fields: ${missing.join(", ")}`;
+        errDiv.classList.remove("hidden");
+        return;
+    }
+
+    const btn = document.getElementById("addSave");
+    btn.disabled = true;
+    btn.textContent = "Adding…";
+    const res = await Auth.apiCall("POST", "/depot/inventory", payload);
+    if (res && res.ok) {
+        document.getElementById("addDeviceModal").classList.add("hidden");
+        const msg = payload.status === "Damaged In Transit"
+            ? `${payload.serial} added as Damaged In Transit. Claim opened in IMS.`
+            : `${payload.serial} added to ${currentFacility}.`;
+        showSuccess(msg);
+        await loadDepotInventory(currentFacility);
+    } else {
+        let detail = "Add failed.";
+        try { const err = await res.json(); if (err.detail) detail = err.detail; } catch (e) {}
+        errDiv.textContent = detail;
+        errDiv.classList.remove("hidden");
+    }
+    btn.disabled = false;
+    btn.textContent = "Add Device";
+});
+
+// ── Mobile barcode scanning (matches form.js pattern) ─────────────────────
+// Hide scan buttons on desktop
+if (!isMobile) {
+    ["addScanSerialBtn", "addScanAssetBtn", "addScanMercyBtn"].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.style.display = "none";
+    });
+}
+
+function loadZXing() {
+    return new Promise((resolve) => {
+        if (zxingLoaded || typeof ZXing !== "undefined") {
+            zxingLoaded = true;
+            resolve();
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js";
+        script.onload = () => { zxingLoaded = true; resolve(); };
+        document.head.appendChild(script);
+    });
+}
+
+function startScan(fieldId) {
+    if (!isMobile) return;
+    activeScanField = fieldId;
+    if (isIOS) startIOSScan();
+    else       startAndroidScan();
+}
+
+// Android — native camera capture + BarcodeDetector
+const barcodeCapture = document.getElementById("barcodeCapture");
+
+function startAndroidScan() {
+    barcodeCapture.value = "";
+    barcodeCapture.click();
+}
+
+barcodeCapture.addEventListener("change", async () => {
+    if (!barcodeCapture.files || !barcodeCapture.files[0]) return;
+    const file = barcodeCapture.files[0];
+    if ("BarcodeDetector" in window) {
+        try {
+            const bitmap = await createImageBitmap(file);
+            const detector = new BarcodeDetector({
+                formats: ["code_128", "code_39", "code_93", "codabar",
+                          "ean_13", "ean_8", "upc_a", "upc_e", "pdf417"]
+            });
+            const barcodes = await detector.detect(bitmap);
+            if (barcodes.length > 0 && activeScanField) {
+                const value = barcodes[0].rawValue.toUpperCase();
+                const field = document.getElementById(activeScanField);
+                field.value = value;
+                field.dispatchEvent(new Event("input"));
+            } else {
+                alert("No barcode detected. Please try again or enter manually.");
+            }
+        } catch (err) {
+            alert("Could not read barcode. Please enter manually.");
+        }
+    } else {
+        alert("Barcode detection not supported in this browser. Please enter manually.");
+    }
+    barcodeCapture.value = "";
+    activeScanField = null;
+});
+
+// iOS — ZXing video stream
+async function startIOSScan() {
+    await loadZXing();
+    const modal = document.getElementById("cameraModal");
+    const resultEl = document.getElementById("scanResult");
+    modal.classList.remove("hidden");
+    resultEl.textContent = "";
+    resultEl.className = "";
+    try {
+        codeReader = new ZXing.BrowserMultiFormatReader();
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        const video = document.getElementById("cameraStream");
+        video.srcObject = stream;
+        await video.play();
+        codeReader.decodeFromStream(stream, video, (result) => {
+            if (result && activeScanField) {
+                const value = result.getText().toUpperCase();
+                const field = document.getElementById(activeScanField);
+                field.value = value;
+                field.dispatchEvent(new Event("input"));
+                resultEl.textContent = `✓ Scanned: ${value}`;
+                resultEl.className = "field-notice success";
+                setTimeout(() => stopIOSScan(), 1200);
+            }
+        });
+    } catch (err) {
+        resultEl.textContent = `Camera error: ${err.message || "Permission denied or not available."}`;
+        resultEl.className = "field-notice error";
+    }
+}
+
+function stopIOSScan() {
+    if (codeReader) {
+        codeReader.reset();
+        codeReader = null;
+    }
+    const video = document.getElementById("cameraStream");
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+    }
+    document.getElementById("cameraModal").classList.add("hidden");
+    activeScanField = null;
+}
+
+document.getElementById("cancelScanBtn").addEventListener("click", stopIOSScan);
+document.getElementById("manualEntryBtn").addEventListener("click", stopIOSScan);
+
+document.getElementById("addScanSerialBtn").addEventListener("click", () => startScan("addSerial"));
+document.getElementById("addScanAssetBtn").addEventListener("click",  () => startScan("addAsset"));
+document.getElementById("addScanMercyBtn").addEventListener("click",  () => startScan("addMercyId"));
+
+// ── Initial load ──────────────────────────────────────────────────────────
 loadDepotSites();
+loadCmdbManufacturers();
