@@ -360,6 +360,8 @@ function openAddDeviceModal() {
     document.getElementById("addError").classList.add("hidden");
     document.getElementById("addManufacturerDropdown").classList.add("hidden");
     document.getElementById("addModelDropdown").classList.add("hidden");
+    saveBlockedByConflict = false;
+    updateSaveButtonState();
     document.getElementById("addDeviceModal").classList.remove("hidden");
 }
 
@@ -382,10 +384,39 @@ document.getElementById("addMercyId").addEventListener("input", (e) => {
     e.target.setSelectionRange(pos, pos);
 });
 
-// ── CMDB autofill on serial entry (debounced) ──────────────────────────────
+// ── Lexmark leading-S strip ───────────────────────────────────────────────
+// When manufacturer is Lexmark, strip a leading "S" from the serial. Applied
+// whenever the serial OR manufacturer changes (since either may arrive first).
+function applyLexmarkStrip() {
+    const serialEl = document.getElementById("addSerial");
+    const mfrEl = document.getElementById("addManufacturer");
+    const mfr = (mfrEl.value || "").trim().toUpperCase();
+    const serial = (serialEl.value || "").trim();
+    if ((mfr === "LEXMARK" || mfr === "LM") && serial.startsWith("S")) {
+        serialEl.value = serial.slice(1);
+    }
+}
+
+document.getElementById("addManufacturer").addEventListener("change", applyLexmarkStrip);
+document.getElementById("addManufacturer").addEventListener("blur", applyLexmarkStrip);
+
+// ── Save-button gate driven by conflict state ─────────────────────────────
+// When the pre-flight conflict check fails we don't want the user submitting.
+// (The backend POST also rejects — this is just UX defense in depth.)
+let saveBlockedByConflict = false;
+function updateSaveButtonState() {
+    document.getElementById("addSave").disabled = saveBlockedByConflict;
+}
+
+// ── CMDB autofill + cross-table conflict check on serial entry (debounced) ─
 let serialLookupTimer = null;
 document.getElementById("addSerial").addEventListener("input", () => {
     clearTimeout(serialLookupTimer);
+    // Any new serial input clears the prior conflict block; the debounced
+    // check below will reapply it if the new serial conflicts too.
+    saveBlockedByConflict = false;
+    updateSaveButtonState();
+
     const serial = document.getElementById("addSerial").value.trim();
     const notice = document.getElementById("addSerialNotice");
     if (!serial) {
@@ -393,20 +424,49 @@ document.getElementById("addSerial").addEventListener("input", () => {
         return;
     }
     serialLookupTimer = setTimeout(async () => {
-        const res = await Auth.apiCall("GET", `/cmdb/lookup/${encodeURIComponent(serial)}`);
-        if (res && res.ok) {
-            const data = await res.json();
+        // Fire both checks in parallel
+        const [cmdbRes, checkRes] = await Promise.all([
+            Auth.apiCall("GET", `/cmdb/lookup/${encodeURIComponent(serial)}`),
+            Auth.apiCall("GET", `/depot/inventory-check/${encodeURIComponent(serial)}`),
+        ]);
+
+        // 1) CMDB autofill — only fill fields if the input hasn't changed since
+        //    we fired the request (user kept typing).
+        if (document.getElementById("addSerial").value.trim() !== serial) return;
+
+        if (cmdbRes && cmdbRes.ok) {
+            const data = await cmdbRes.json();
             document.getElementById("addAsset").value = (data.asset || "").toUpperCase();
             document.getElementById("addMercyId").value = (data.mercy_id || "").replace(/\s/g, "");
             document.getElementById("addManufacturer").value = data.manufacturer || "";
             document.getElementById("addModel").value = data.model || "";
+            applyLexmarkStrip();
+        }
+
+        // 2) Cross-table conflict check — blocks Save and shows the red badge
+        if (checkRes && checkRes.ok) {
+            const check = await checkRes.json();
+            if (check.conflict) {
+                notice.textContent = "✗ " + check.detail + " Cannot add as a duplicate.";
+                notice.className = "field-notice error";
+                notice.classList.remove("hidden");
+                saveBlockedByConflict = true;
+                updateSaveButtonState();
+                return;
+            }
+        }
+
+        // 3) If no conflict, show the CMDB hit/miss notice
+        if (cmdbRes && cmdbRes.ok) {
             notice.textContent = "✓ Found in CMDB — fields auto-populated, update any if needed.";
             notice.className = "field-notice success";
             notice.classList.remove("hidden");
-        } else if (res && res.status === 404) {
+        } else if (cmdbRes && cmdbRes.status === 404) {
             notice.textContent = "Not found in CMDB — enter details manually.";
             notice.className = "field-notice warning";
             notice.classList.remove("hidden");
+        } else {
+            notice.classList.add("hidden");
         }
     }, 400);
 });
@@ -462,6 +522,9 @@ setupCombobox(
         // Clear cached model list for the new manufacturer to force refresh
         document.getElementById("addModel").value = "";
         delete cmdbModelsCache[val];
+        // Selecting Lexmark must trigger the leading-S strip on the serial
+        // (programmatic input.value changes don't fire native change events).
+        applyLexmarkStrip();
     }
 );
 
