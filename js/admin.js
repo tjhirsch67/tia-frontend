@@ -3,6 +3,7 @@ if (!Auth.requireAuth(["admin"])) { throw new Error("Redirecting"); }
 
 const { username } = Auth.getUser();
 document.getElementById("navUsername").textContent = username;
+Auth.loadDepotTabVisibility();
 
 document.getElementById("hamburger").addEventListener("click", () => {
     document.getElementById("mainNav").classList.toggle("open");

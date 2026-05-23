@@ -72,5 +72,23 @@ const Auth = {
             return null;
         }
         return res;
+    },
+
+    // Phase 5 — Depot Inventory tab visibility. The tab is hidden by default
+    // until an admin flips the flag in /depot/visible. Each page calls this
+    // after auth to conditionally show its #navDepot link.
+    async loadDepotTabVisibility() {
+        try {
+            const res = await this.apiCall("GET", "/depot/visible");
+            if (!res || !res.ok) return false;
+            const data = await res.json();
+            if (data.visible) {
+                const link = document.getElementById("navDepot");
+                if (link) link.classList.remove("hidden");
+            }
+            return !!data.visible;
+        } catch (e) {
+            return false;
+        }
     }
 };

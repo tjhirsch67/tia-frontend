@@ -9,6 +9,7 @@ if (role === "admin" || role === "tech_full") {
 if (role === "admin") {
     document.getElementById("navAdmin").classList.remove("hidden");
 }
+Auth.loadDepotTabVisibility();
 
 document.getElementById("hamburger").addEventListener("click", () => {
     document.getElementById("mainNav").classList.toggle("open");

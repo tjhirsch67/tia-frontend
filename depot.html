@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIA - Depot Inventory</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="form.html">TIA</a>
+        <div class="hamburger" id="hamburger">
+            <span></span><span></span><span></span>
+        </div>
+        <ul class="navbar-nav" id="mainNav">
+            <li><a href="form.html">Tech Install</a></li>
+            <li id="navReport" class="hidden"><a href="report.html">Reports</a></li>
+            <li id="navDepot"><a href="depot.html" class="active">Depot Inventory</a></li>
+            <li id="navAdmin" class="hidden"><a href="admin.html">Admin</a></li>
+        </ul>
+        <div class="navbar-user">
+            <span id="navUsername"></span>
+            <button class="btn btn-secondary btn-sm" onclick="Auth.logout()">Sign Out</button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="page-title">Depot Inventory</div>
+
+        <div id="pageError" class="error-message hidden"></div>
+        <div id="pageSuccess" class="success-message hidden"></div>
+
+        <!-- Depot picker -->
+        <div class="card">
+            <div class="card-title">Select Depot</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="depotSelect">Depot</label>
+                    <select id="depotSelect">
+                        <option value="">-- Select a depot --</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex; align-items:flex-end;">
+                    <button class="btn btn-secondary" id="refreshBtn" disabled>&#x21BB; Refresh</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory table -->
+        <div class="card" id="inventoryCard" style="display:none;">
+            <div class="card-title">
+                <span id="inventoryTitle">Inventory</span>
+                <span id="inventoryCount" style="color:#666; font-weight:400; font-size:0.9rem; margin-left:8px;"></span>
+            </div>
+            <div style="overflow-x:auto;">
+                <table class="data-table" id="inventoryTable">
+                    <thead>
+                        <tr>
+                            <th>Serial</th>
+                            <th>Asset</th>
+                            <th>MercyID</th>
+                            <th>Manufacturer</th>
+                            <th>Model</th>
+                            <th>Status</th>
+                            <th>Received</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventoryBody">
+                        <tr><td colspan="8" style="text-align:center; padding:20px; color:#666;">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Check-In confirm modal -->
+    <div id="checkInModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 style="color:#1F4E79; margin-bottom:12px;">Check In Device</h3>
+            <p style="margin-bottom:12px;">Confirm this device arrived at your depot in good condition:</p>
+            <table style="margin-bottom:16px;">
+                <tr><td><b>Serial</b></td><td id="checkInSerial"></td></tr>
+                <tr><td><b>Manufacturer / Model</b></td><td id="checkInMfrModel"></td></tr>
+            </table>
+            <p style="color:#666; font-size:0.9rem; margin-bottom:16px;">Status will change from <b>In Transit</b> to <b>In Stock</b>.</p>
+            <div id="checkInError" class="error-message hidden"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="checkInCancel">Cancel</button>
+                <button class="btn btn-primary" id="checkInConfirm">Check In</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Damaged In Transit modal -->
+    <div id="damagedModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 style="color:#c0392b; margin-bottom:12px;">Mark Damaged In Transit</h3>
+            <p style="margin-bottom:12px;">This will flag the device as damaged and open a Damaged Claim in IMS. The damaged-device notification email will be sent.</p>
+            <table style="margin-bottom:12px;">
+                <tr><td><b>Serial</b></td><td id="damagedSerial"></td></tr>
+                <tr><td><b>Manufacturer / Model</b></td><td id="damagedMfrModel"></td></tr>
+            </table>
+            <div class="form-group">
+                <label for="damagedNotes">Notes (optional)</label>
+                <textarea id="damagedNotes" rows="3" placeholder="Describe the damage…"></textarea>
+            </div>
+            <div id="damagedError" class="error-message hidden"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="damagedCancel">Cancel</button>
+                <button class="btn btn-primary" id="damagedConfirm" style="background:#c0392b;">Mark Damaged</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Status modal -->
+    <div id="editModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 style="color:#1F4E79; margin-bottom:12px;">Edit Status</h3>
+            <table style="margin-bottom:12px;">
+                <tr><td><b>Serial</b></td><td id="editSerial"></td></tr>
+                <tr><td><b>Manufacturer / Model</b></td><td id="editMfrModel"></td></tr>
+                <tr><td><b>Current Status</b></td><td id="editCurrentStatus"></td></tr>
+            </table>
+            <div class="form-group">
+                <label for="editStatusSelect">New Status</label>
+                <select id="editStatusSelect">
+                    <option value="In Stock">In Stock</option>
+                    <option value="In Maintenance">In Maintenance</option>
+                </select>
+                <p style="color:#666; font-size:0.85rem; margin-top:6px;">To flag a device as Damaged In Transit, use the <b>Damaged In Transit</b> action on an In-Transit row. For a damaged device that's already In Stock, open a damaged claim in IMS directly.</p>
+            </div>
+            <div id="editError" class="error-message hidden"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="editCancel">Cancel</button>
+                <button class="btn btn-primary" id="editConfirm">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/depot.js"></script>
+</body>
+</html>

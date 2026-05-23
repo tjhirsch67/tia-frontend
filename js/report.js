@@ -7,6 +7,7 @@ if (role === "admin") {
     document.getElementById("navAdmin").classList.remove("hidden");
     document.getElementById("emailAutoBtn").style.display = "";
 }
+Auth.loadDepotTabVisibility();
 
 // Hamburger
 document.getElementById("hamburger").addEventListener("click", () => {
