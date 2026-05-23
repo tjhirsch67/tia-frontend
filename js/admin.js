@@ -21,8 +21,79 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
         if (btn.dataset.tab === "users") loadUsers();
         if (btn.dataset.tab === "records") loadRecords();
         if (btn.dataset.tab === "recipients") loadRecipients();
+        if (btn.dataset.tab === "settings") loadDepotVisibility();
     });
 });
+
+// ── Settings: Depot Tab Visibility ───────────────────────────────────────
+let depotVisibilityCurrent = null;
+
+async function loadDepotVisibility() {
+    const statusEl = document.getElementById("depotVisibilityStatus");
+    const btn = document.getElementById("depotVisibilityToggleBtn");
+    const msg = document.getElementById("depotVisibilityMsg");
+    msg.classList.add("hidden");
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    statusEl.textContent = "Loading…";
+    statusEl.className = "badge badge-gray";
+
+    const res = await Auth.apiCall("GET", "/depot/visible");
+    if (!res || !res.ok) {
+        statusEl.textContent = "Failed to load";
+        statusEl.className = "badge badge-red";
+        btn.textContent = "Retry";
+        btn.disabled = false;
+        return;
+    }
+    const data = await res.json();
+    depotVisibilityCurrent = !!data.visible;
+    if (depotVisibilityCurrent) {
+        statusEl.textContent = "Visible";
+        statusEl.className = "badge badge-green";
+        btn.textContent = "Hide Depot Tab";
+        btn.className = "btn btn-secondary";
+    } else {
+        statusEl.textContent = "Hidden";
+        statusEl.className = "badge badge-gray";
+        btn.textContent = "Show Depot Tab";
+        btn.className = "btn btn-primary";
+    }
+    btn.disabled = false;
+}
+
+async function toggleDepotVisibility() {
+    if (depotVisibilityCurrent === null) return;
+    const btn = document.getElementById("depotVisibilityToggleBtn");
+    const msg = document.getElementById("depotVisibilityMsg");
+    btn.disabled = true;
+    btn.textContent = "Updating…";
+    msg.classList.add("hidden");
+
+    const newValue = !depotVisibilityCurrent;
+    const res = await Auth.apiCall("PUT", "/depot/visible", { visible: newValue });
+    if (res && res.ok) {
+        msg.textContent = `✓ Depot tab is now ${newValue ? "visible" : "hidden"}. Other users will see the change after their next page load.`;
+        msg.className = "success-message";
+        msg.classList.remove("hidden");
+
+        // Update our own nav link state immediately — no refresh needed
+        const link = document.getElementById("navDepot");
+        if (link) link.classList.toggle("hidden", !newValue);
+
+        await loadDepotVisibility();
+    } else {
+        let detail = "Failed to update.";
+        try { const err = await res.json(); if (err.detail) detail = err.detail; } catch (e) {}
+        msg.textContent = detail;
+        msg.className = "error-message";
+        msg.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = depotVisibilityCurrent ? "Hide Depot Tab" : "Show Depot Tab";
+    }
+}
+
+document.getElementById("depotVisibilityToggleBtn").addEventListener("click", toggleDepotVisibility);
 
 document.querySelectorAll(".inner-tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {

@@ -37,6 +37,7 @@
             <button class="tab-btn" data-tab="users">Users</button>
             <button class="tab-btn" data-tab="recipients">Recipients</button>
             <button class="tab-btn" data-tab="mfrmodels">Mfr-Models</button>
+            <button class="tab-btn" data-tab="settings">Settings</button>
         </div>
 
         <!-- ── CMDB Tab ──────────────────────────────────────────────────── -->
@@ -260,6 +261,23 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- ── Settings Tab ─────────────────────────────────────────────── -->
+    <div id="tab-settings" class="tab-content hidden">
+        <div class="card">
+            <div class="card-title">Depot Inventory Tab</div>
+            <p class="tab-desc">Show or hide the &ldquo;Depot Inventory&rdquo; link in the TIA nav for all users. When hidden, the page is still reachable by direct URL &mdash; this only controls discoverability via the nav. Use the hide setting until techs are trained.</p>
+
+            <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px;">
+                <span style="font-weight:600;">Current state:</span>
+                <span id="depotVisibilityStatus" class="badge badge-gray">Loading&hellip;</span>
+            </div>
+
+            <div id="depotVisibilityMsg" class="hidden" style="margin-bottom:12px;"></div>
+            <button class="btn btn-primary" id="depotVisibilityToggleBtn" disabled>Loading&hellip;</button>
+            <p style="margin-top:14px; color:#666; font-size:0.85rem;">Other signed-in users see the change on their next page navigation. Your own nav link updates immediately.</p>
+        </div>
     </div>
 
     <!-- ── Recipients Tab ─────────────────────────────────────────────── -->
