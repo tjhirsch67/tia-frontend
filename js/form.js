@@ -186,11 +186,39 @@ function clearDeviceFields() {
     selectedManufacturer = "";
 }
 
+// Service types whose backend submission blocks on bad depot status. Mirrors
+// PULL_FROM_DEPOT_SERVICE_TYPES in submissions.py.
+const PULL_FROM_DEPOT_TYPES = new Set(["Install-New", "Move", "Hot Swap"]);
+const BAD_DEPOT_STATUSES = new Set(["In Transit", "In Maintenance", "Damaged In Transit"]);
+
+// Latest depot-status snapshot for the current serial; null when serial is
+// not at any depot or the lookup hasn't run yet.
+let depotStatusInfo = null;
+
+function updateSubmitGate() {
+    // Disable Submit when the current serial is at a depot in a bad status
+    // AND the service type would trigger the depot-pull (Install/Move/Hot Swap).
+    // Backend 409 is the final guard; this is just UX.
+    const svc = document.getElementById("serviceType").value;
+    const btn = document.getElementById("submitBtn");
+    if (!btn) return;
+    const blocked = depotStatusInfo
+        && depotStatusInfo.at_depot
+        && BAD_DEPOT_STATUSES.has(depotStatusInfo.status)
+        && PULL_FROM_DEPOT_TYPES.has(svc);
+    btn.disabled = !!blocked;
+}
+
+document.getElementById("serviceType").addEventListener("change", updateSubmitGate);
+
 let serialLookupTimeout = null;
 document.getElementById("serial").addEventListener("input", (e) => {
     clearTimeout(serialLookupTimeout);
     const serial = e.target.value.trim();
     const notice = document.getElementById("serialNotice");
+    // Reset depot state on every serial change; the debounced lookup repopulates.
+    depotStatusInfo = null;
+    updateSubmitGate();
     if (!serial) {
         notice.classList.add("hidden");
         clearDeviceFields();
@@ -198,25 +226,63 @@ document.getElementById("serial").addEventListener("input", (e) => {
         return;
     }
     serialLookupTimeout = setTimeout(async () => {
-        const res = await Auth.apiCall("GET", `/cmdb/lookup/${encodeURIComponent(serial)}`);
-        if (res && res.ok) {
-            const data = await res.json();
+        // Fire CMDB lookup and depot-status check in parallel
+        const [cmdbRes, depotRes] = await Promise.all([
+            Auth.apiCall("GET", `/cmdb/lookup/${encodeURIComponent(serial)}`),
+            Auth.apiCall("GET", `/depot/serial-status/${encodeURIComponent(serial)}`),
+        ]);
+
+        // Bail if the user kept typing
+        if (document.getElementById("serial").value.trim() !== serial) return;
+
+        // 1) CMDB autofill (existing behavior)
+        let cmdbHit = false;
+        if (cmdbRes && cmdbRes.ok) {
+            const data = await cmdbRes.json();
             document.getElementById("asset").value = data.asset || "";
             document.getElementById("mercyId").value = data.mercy_id || "";
             document.getElementById("manufacturer").value = data.manufacturer || "";
             document.getElementById("model").value = data.model || "";
             selectedManufacturer = data.manufacturer || "";
+            enableComboboxes();
+            cmdbHit = true;
+        } else if (cmdbRes && cmdbRes.status === 404) {
+            clearDeviceFields();
+            enableComboboxes();
+        }
+
+        // 2) Depot-status check — sets depotStatusInfo and drives the warning
+        if (depotRes && depotRes.ok) {
+            depotStatusInfo = await depotRes.json();
+        } else {
+            depotStatusInfo = null;
+        }
+
+        // 3) Decide which notice to show — depot warning takes priority over
+        //    the CMDB hit/miss notice because it's blocking on submit.
+        if (depotStatusInfo && depotStatusInfo.at_depot && BAD_DEPOT_STATUSES.has(depotStatusInfo.status)) {
+            const advice = {
+                "In Transit":         "wait for depot check-in",
+                "In Maintenance":     "mark the device In Stock from the depot tab when repair is complete",
+                "Damaged In Transit": "resolve the damaged claim in IMS",
+            }[depotStatusInfo.status] || "resolve the depot state";
+            notice.textContent = `✗ Device is at ${depotStatusInfo.depot_facility} with status "${depotStatusInfo.status}" — ` +
+                `cannot Install / Move / Hot Swap. Please ${advice} first.`;
+            notice.className = "field-notice error";
+            notice.classList.remove("hidden");
+        } else if (cmdbHit) {
             notice.textContent = "✓ Device found in CMDB — fields auto-populated, update any if needed";
             notice.className = "field-notice success";
             notice.classList.remove("hidden");
-            enableComboboxes();
-        } else if (res && res.status === 404) {
-            clearDeviceFields();
-            enableComboboxes();
+        } else if (cmdbRes && cmdbRes.status === 404) {
             notice.textContent = "Not found in CMDB — enter details manually";
             notice.className = "field-notice warning";
             notice.classList.remove("hidden");
+        } else {
+            notice.classList.add("hidden");
         }
+
+        updateSubmitGate();
     }, 500);
 });
 
@@ -425,8 +491,12 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    btn.disabled = false;
     btn.textContent = "Submit";
+    // Re-evaluate the submit gate. After a successful submission, clearForm
+    // resets depot state and this re-enables the button. After a 409 error,
+    // depotStatusInfo is still set, so the gate stays disabled until the user
+    // fixes the serial — preventing immediate retry of the same bad submission.
+    updateSubmitGate();
 });
 
 // ── Clear Form ────────────────────────────────────────────────────────────
@@ -443,6 +513,8 @@ function clearForm() {
     document.getElementById("atr").value = "";
     document.getElementById("serialNotice").classList.add("hidden");
     selectedManufacturer = "";
+    depotStatusInfo = null;
+    updateSubmitGate();
     enableComboboxes();
     lockLocationFields();
     setToday();
