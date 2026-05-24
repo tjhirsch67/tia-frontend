@@ -407,7 +407,14 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
 
     const res = await Auth.apiCall("POST", "/submissions/", payload);
     if (res && res.ok) {
-        successDiv.textContent = "✓ Record submitted successfully.";
+        let msg = "✓ Record submitted successfully.";
+        try {
+            const data = await res.json();
+            if (data && data.depot_action && data.depot_action.message) {
+                msg += ` ${data.depot_action.message}`;
+            }
+        } catch (e) { /* response body wasn't JSON — keep the default message */ }
+        successDiv.textContent = msg;
         successDiv.classList.remove("hidden");
         clearForm();
         window.scrollTo({ top: 0, behavior: "smooth" });
