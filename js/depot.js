@@ -824,61 +824,9 @@ function wirePhotoInput(modal) {
 wirePhotoInput("damaged");
 wirePhotoInput("add");
 
-// HEIC detection (iPhone default format)
-function isHeicFile(file) {
-    const name = (file.name || "").toLowerCase();
-    return file.type === "image/heic" || file.type === "image/heif"
-        || name.endsWith(".heic") || name.endsWith(".heif");
-}
-
-let _photoHeic2anyLoading = null;
-function ensureHeic2AnyLoaded() {
-    if (window.heic2any) return Promise.resolve();
-    if (_photoHeic2anyLoading) return _photoHeic2anyLoading;
-    _photoHeic2anyLoading = new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js";
-        s.onload = () => resolve();
-        s.onerror = () => {
-            _photoHeic2anyLoading = null;
-            reject(new Error("Failed to load heic2any"));
-        };
-        document.head.appendChild(s);
-    });
-    return _photoHeic2anyLoading;
-}
-
-// Canvas resize → 1600 px JPEG @ 0.85 (strips EXIF)
-function resizeImageToJpeg(fileOrBlob, maxDim = 1600, quality = 0.85) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const url = URL.createObjectURL(fileOrBlob);
-        img.onload = () => {
-            let { width, height } = img;
-            if (width >= height && width > maxDim) {
-                height = Math.round(height * maxDim / width);
-                width = maxDim;
-            } else if (height > width && height > maxDim) {
-                width = Math.round(width * maxDim / height);
-                height = maxDim;
-            }
-            const canvas = document.createElement("canvas");
-            canvas.width = width;
-            canvas.height = height;
-            canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-            canvas.toBlob((blob) => {
-                URL.revokeObjectURL(url);
-                if (blob) resolve(blob);
-                else reject(new Error("Canvas toBlob returned null"));
-            }, "image/jpeg", quality);
-        };
-        img.onerror = () => {
-            URL.revokeObjectURL(url);
-            reject(new Error("Image load failed"));
-        };
-        img.src = url;
-    });
-}
+// Phase 6.7 — isHeicFile, ensureHeic2AnyLoaded, resizeImageToJpeg live in
+// js/photo-helpers.js (loaded by depot.html before this script). Keep the
+// IMS copy at frontend/js/photo-helpers.js byte-identical.
 
 async function uploadOnePhoto(claimId, origFile) {
     let file = origFile;
