@@ -109,6 +109,13 @@
                 <label for="damagedNotes">Notes (optional)</label>
                 <textarea id="damagedNotes" rows="3" placeholder="Describe the damage…"></textarea>
             </div>
+            <!-- Phase 6.5 — photo capture (1-2 photos of the damage) -->
+            <div class="form-group">
+                <label>Photos of the damage <span style="color:#888; font-weight:400;">(1–2 photos)</span></label>
+                <input type="file" id="damagedPhotos" accept="image/*" multiple capture="environment" style="display:none;" />
+                <button type="button" class="btn btn-secondary" id="damagedAddPhotosBtn">📷 Add Photos</button>
+                <div id="damagedPhotosPreview" style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;"></div>
+            </div>
             <div id="damagedError" class="error-message hidden"></div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="damagedCancel">Cancel</button>
@@ -204,6 +211,14 @@
             <div class="form-group">
                 <label for="addNotes">Notes (optional)</label>
                 <textarea id="addNotes" rows="2" placeholder="Optional notes"></textarea>
+            </div>
+
+            <!-- Phase 6.5 — photo capture, only shown when status = Damaged In Transit -->
+            <div class="form-group" id="addPhotosSection" style="display:none;">
+                <label>Photos of the damage <span style="color:#888; font-weight:400;">(1–2 photos)</span></label>
+                <input type="file" id="addPhotos" accept="image/*" multiple capture="environment" style="display:none;" />
+                <button type="button" class="btn btn-secondary" id="addAddPhotosBtn">📷 Add Photos</button>
+                <div id="addPhotosPreview" style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;"></div>
             </div>
 
             <div id="addError" class="error-message hidden"></div>

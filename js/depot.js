@@ -246,12 +246,14 @@ function openDamagedModal(row) {
     document.getElementById("damagedMfrModel").textContent = `${row.manufacturer} ${row.model}`;
     document.getElementById("damagedNotes").value = "";
     document.getElementById("damagedError").classList.add("hidden");
+    resetPhotoStaging("damaged");
     document.getElementById("damagedModal").classList.remove("hidden");
 }
 
 document.getElementById("damagedCancel").addEventListener("click", () => {
     document.getElementById("damagedModal").classList.add("hidden");
     damagedTarget = null;
+    resetPhotoStaging("damaged");
 });
 
 document.getElementById("damagedConfirm").addEventListener("click", async () => {
@@ -266,9 +268,27 @@ document.getElementById("damagedConfirm").addEventListener("click", async () => 
         { notes }
     );
     if (res && res.ok) {
+        const data = await res.json();
+        const claimId = data && data.damaged_claim_id;
+        // Phase 6.5 — upload staged photos sequentially after claim creation
+        if (claimId && photoStaging.damaged.length > 0) {
+            btn.textContent = "Uploading photos…";
+            const result = await uploadStagedPhotos("damaged", claimId);
+            if (result.failed > 0) {
+                showError(
+                    `${damagedTarget.serial} flagged but ${result.failed} of ${result.failed + result.succeeded} photos failed to upload. Check console.`
+                );
+            } else {
+                showSuccess(
+                    `${damagedTarget.serial} flagged as Damaged In Transit. ${result.succeeded} photo(s) uploaded. Claim opened in IMS.`
+                );
+            }
+        } else {
+            showSuccess(`${damagedTarget.serial} flagged as Damaged In Transit. Claim opened in IMS.`);
+        }
         document.getElementById("damagedModal").classList.add("hidden");
-        showSuccess(`${damagedTarget.serial} flagged as Damaged In Transit. Claim opened in IMS.`);
         damagedTarget = null;
+        resetPhotoStaging("damaged");
         await loadDepotInventory(currentFacility);
     } else {
         let detail = "Submission failed.";
@@ -362,13 +382,25 @@ function openAddDeviceModal() {
     document.getElementById("addModelDropdown").classList.add("hidden");
     saveBlockedByConflict = false;
     updateSaveButtonState();
+    resetPhotoStaging("add");
+    // Photo section visibility tracks status selection (only shown when DIT)
+    syncAddPhotoSectionVisibility();
     document.getElementById("addDeviceModal").classList.remove("hidden");
 }
 
 document.getElementById("addDeviceBtn").addEventListener("click", openAddDeviceModal);
 document.getElementById("addCancel").addEventListener("click", () => {
     document.getElementById("addDeviceModal").classList.add("hidden");
+    resetPhotoStaging("add");
 });
+
+// Phase 6.5 — show/hide the photo upload section based on status selection
+function syncAddPhotoSectionVisibility() {
+    const status = document.getElementById("addStatus").value;
+    document.getElementById("addPhotosSection").style.display =
+        status === "Damaged In Transit" ? "" : "none";
+}
+document.getElementById("addStatus").addEventListener("change", syncAddPhotoSectionVisibility);
 
 // Force uppercase on serial, asset, mercyId; strip spaces on mercyId
 ["addSerial", "addAsset", "addMercyId"].forEach(id => {
@@ -570,11 +602,23 @@ document.getElementById("addSave").addEventListener("click", async () => {
     btn.textContent = "Adding…";
     const res = await Auth.apiCall("POST", "/depot/inventory", payload);
     if (res && res.ok) {
+        const data = await res.json();
+        const claimId = data && data.damaged_claim_id;
+        // Phase 6.5 — if Damaged In Transit, upload staged photos
+        let photoSummary = "";
+        if (payload.status === "Damaged In Transit" && claimId && photoStaging.add.length > 0) {
+            btn.textContent = "Uploading photos…";
+            const result = await uploadStagedPhotos("add", claimId);
+            photoSummary = result.failed > 0
+                ? ` (${result.succeeded}/${result.succeeded + result.failed} photos uploaded; ${result.failed} failed)`
+                : ` (${result.succeeded} photo(s) uploaded)`;
+        }
         document.getElementById("addDeviceModal").classList.add("hidden");
         const msg = payload.status === "Damaged In Transit"
-            ? `${payload.serial} added as Damaged In Transit. Claim opened in IMS.`
+            ? `${payload.serial} added as Damaged In Transit. Claim opened in IMS.${photoSummary}`
             : `${payload.serial} added to ${currentFacility}.`;
         showSuccess(msg);
+        resetPhotoStaging("add");
         await loadDepotInventory(currentFacility);
     } else {
         let detail = "Add failed.";
@@ -706,6 +750,179 @@ document.getElementById("manualEntryBtn").addEventListener("click", stopIOSScan)
 document.getElementById("addScanSerialBtn").addEventListener("click", () => startScan("addSerial"));
 document.getElementById("addScanAssetBtn").addEventListener("click",  () => startScan("addAsset"));
 document.getElementById("addScanMercyBtn").addEventListener("click",  () => startScan("addMercyId"));
+
+// ── Phase 6.5 — Damaged Claim Photo upload (Damaged + Add Device modals) ─
+// Per-modal staging: each modal keeps an array of File objects selected by
+// the tech. Upload happens AFTER the claim is created so we have a claim_id.
+//
+// Pipeline per photo: HEIC → JPEG (iPhone) → Canvas resize to 1600 px
+// JPEG @ 0.85 (strips EXIF/GPS) → POST multipart.
+//
+// Bypasses Auth.apiCall for the POST because apiCall forces
+// Content-Type: application/json which breaks multipart. Manual Bearer
+// header preserves auth.
+
+const photoStaging = { damaged: [], add: [] };
+
+function resetPhotoStaging(modal) {
+    photoStaging[modal] = [];
+    const preview = document.getElementById(
+        modal === "damaged" ? "damagedPhotosPreview" : "addPhotosPreview"
+    );
+    if (preview) preview.innerHTML = "";
+    const input = document.getElementById(
+        modal === "damaged" ? "damagedPhotos" : "addPhotos"
+    );
+    if (input) input.value = "";
+}
+
+function renderPhotoPreviews(modal) {
+    const preview = document.getElementById(
+        modal === "damaged" ? "damagedPhotosPreview" : "addPhotosPreview"
+    );
+    preview.innerHTML = "";
+    photoStaging[modal].forEach((file, idx) => {
+        const wrap = document.createElement("div");
+        wrap.style.cssText =
+            "position:relative; width:72px; height:72px; border-radius:6px; overflow:hidden; border:1px solid #d1d5db; background:#f3f4f6;";
+        const img = document.createElement("img");
+        img.style.cssText = "width:100%; height:100%; object-fit:cover; display:block;";
+        // Show preview directly from in-memory File via blob URL
+        img.src = URL.createObjectURL(file);
+        img.onload = () => URL.revokeObjectURL(img.src);
+        wrap.appendChild(img);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.textContent = "×";
+        removeBtn.title = "Remove from upload";
+        removeBtn.style.cssText =
+            "position:absolute; top:2px; right:2px; width:18px; height:18px; border:none; border-radius:50%; background:rgba(220,38,38,0.9); color:#fff; font-size:0.8rem; line-height:18px; padding:0; cursor:pointer;";
+        removeBtn.addEventListener("click", () => {
+            photoStaging[modal].splice(idx, 1);
+            renderPhotoPreviews(modal);
+        });
+        wrap.appendChild(removeBtn);
+
+        preview.appendChild(wrap);
+    });
+}
+
+function wirePhotoInput(modal) {
+    const inputId = modal === "damaged" ? "damagedPhotos" : "addPhotos";
+    const btnId   = modal === "damaged" ? "damagedAddPhotosBtn" : "addAddPhotosBtn";
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    btn.addEventListener("click", () => input.click());
+    input.addEventListener("change", (e) => {
+        const files = Array.from(e.target.files || []);
+        photoStaging[modal] = photoStaging[modal].concat(files);
+        renderPhotoPreviews(modal);
+        input.value = "";   // clear so same file can be re-picked if user removed it
+    });
+}
+wirePhotoInput("damaged");
+wirePhotoInput("add");
+
+// HEIC detection (iPhone default format)
+function isHeicFile(file) {
+    const name = (file.name || "").toLowerCase();
+    return file.type === "image/heic" || file.type === "image/heif"
+        || name.endsWith(".heic") || name.endsWith(".heif");
+}
+
+let _photoHeic2anyLoading = null;
+function ensureHeic2AnyLoaded() {
+    if (window.heic2any) return Promise.resolve();
+    if (_photoHeic2anyLoading) return _photoHeic2anyLoading;
+    _photoHeic2anyLoading = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js";
+        s.onload = () => resolve();
+        s.onerror = () => {
+            _photoHeic2anyLoading = null;
+            reject(new Error("Failed to load heic2any"));
+        };
+        document.head.appendChild(s);
+    });
+    return _photoHeic2anyLoading;
+}
+
+// Canvas resize → 1600 px JPEG @ 0.85 (strips EXIF)
+function resizeImageToJpeg(fileOrBlob, maxDim = 1600, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(fileOrBlob);
+        img.onload = () => {
+            let { width, height } = img;
+            if (width >= height && width > maxDim) {
+                height = Math.round(height * maxDim / width);
+                width = maxDim;
+            } else if (height > width && height > maxDim) {
+                width = Math.round(width * maxDim / height);
+                height = maxDim;
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+            canvas.toBlob((blob) => {
+                URL.revokeObjectURL(url);
+                if (blob) resolve(blob);
+                else reject(new Error("Canvas toBlob returned null"));
+            }, "image/jpeg", quality);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Image load failed"));
+        };
+        img.src = url;
+    });
+}
+
+async function uploadOnePhoto(claimId, origFile) {
+    let file = origFile;
+    if (isHeicFile(file)) {
+        await ensureHeic2AnyLoaded();
+        const converted = await window.heic2any({
+            blob: file, toType: "image/jpeg", quality: 0.92,
+        });
+        file = Array.isArray(converted) ? converted[0] : converted;
+    }
+    const resized = await resizeImageToJpeg(file);
+    const baseName = (origFile.name || "photo").replace(/\.[^.]+$/, "");
+    const fd = new FormData();
+    fd.append("file", resized, `${baseName}.jpg`);
+    // Bypass Auth.apiCall (forces JSON Content-Type) — keep Bearer manually
+    const res = await fetch(
+        `${CONFIG.API_BASE}/depot/damaged-claims/${claimId}/photos`,
+        {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${Auth.getToken()}` },
+            body: fd,
+        }
+    );
+    if (!(res.ok || res.status === 201)) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}: ${body}`);
+    }
+    return await res.json();
+}
+
+async function uploadStagedPhotos(modal, claimId) {
+    const files = photoStaging[modal];
+    let succeeded = 0, failed = 0;
+    for (const f of files) {
+        try {
+            await uploadOnePhoto(claimId, f);
+            succeeded++;
+        } catch (err) {
+            failed++;
+            console.error("Photo upload failed", f.name, err);
+        }
+    }
+    return { succeeded, failed };
+}
 
 // ── Initial load ──────────────────────────────────────────────────────────
 loadDepotSites();
