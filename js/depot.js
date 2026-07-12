@@ -28,9 +28,13 @@ let depotSites = [];
 let currentFacility = null;
 let inventoryRows = [];
 
-// CMDB-derived options for Mfr/Model comboboxes (Add Device modal)
-let cmdbManufacturers = [];
-let cmdbModelsCache = {}; // keyed by manufacturer (or "" for all)
+// Model-catalog options for Mfr/Model comboboxes (Add Device modal).
+// Sourced from mfr_models (the same table the tech-install form uses), NOT
+// CMDB. Depot par levels resolve a device's model_class by joining
+// inventory.manufacturer+model to mfr_models, so depot devices must carry the
+// canonical mfr_models spelling or they fall out of class-based par math.
+let mfrManufacturers = [];
+let mfrModelsCache = {}; // keyed by manufacturer (or "" for all) -> string[] of model names
 
 // Scan state
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -103,22 +107,56 @@ async function loadDepotSites() {
     });
 }
 
-// ── Load CMDB manufacturers (for Add Device combobox) ──────────────────────
-async function loadCmdbManufacturers() {
-    const res = await Auth.apiCall("GET", "/cmdb/manufacturers");
+// ── Load mfr_models manufacturers (for Add Device combobox) ────────────────
+async function loadMfrManufacturers() {
+    const res = await Auth.apiCall("GET", "/mfr-models/manufacturers");
     if (!res || !res.ok) return;
-    cmdbManufacturers = await res.json();
+    mfrManufacturers = await res.json(); // string[]
 }
 
-async function loadCmdbModels(manufacturer) {
+// /mfr-models/models returns objects {id, manufacturer, model, model_class,...};
+// the combobox wants a plain string[] of model names.
+async function loadMfrModels(manufacturer) {
     const key = manufacturer || "";
-    if (cmdbModelsCache[key]) return cmdbModelsCache[key];
+    if (mfrModelsCache[key]) return mfrModelsCache[key];
     const qs = manufacturer ? `?manufacturer=${encodeURIComponent(manufacturer)}` : "";
-    const res = await Auth.apiCall("GET", `/cmdb/models${qs}`);
+    const res = await Auth.apiCall("GET", `/mfr-models/models${qs}`);
     if (!res || !res.ok) return [];
-    const models = await res.json();
-    cmdbModelsCache[key] = models;
-    return models;
+    const rows = await res.json();
+    const names = rows.map(r => (r && r.model ? String(r.model) : "")).filter(Boolean);
+    mfrModelsCache[key] = names;
+    return names;
+}
+
+// Is the current manufacturer+model an exact (case-insensitive) match in the
+// catalog? Drives the non-blocking "not in catalog" flag. Uses only already-
+// loadable data — no extra round trip beyond the per-manufacturer model list.
+async function isModelInCatalog(manufacturer, model) {
+    const mfr = (manufacturer || "").trim();
+    const mdl = (model || "").trim().toLowerCase();
+    if (!mfr || !mdl) return true; // nothing to flag on an empty field
+    const names = await loadMfrModels(mfr);
+    return names.some(n => n.toLowerCase() === mdl);
+}
+
+// Show/hide the catalog flag beneath the Model field. Non-blocking: the tech is
+// nudged to pick a catalog match so depot par levels track the device, but may
+// keep a free-text value for a genuine outlier not yet in mfr_models.
+async function evaluateModelCatalogFlag() {
+    const flag = document.getElementById("addModelCatalogFlag");
+    if (!flag) return;
+    const mfr = document.getElementById("addManufacturer").value;
+    const mdl = document.getElementById("addModel").value;
+    if (!mdl.trim()) { flag.classList.add("hidden"); return; }
+    const ok = await isModelInCatalog(mfr, mdl);
+    if (ok) {
+        flag.classList.add("hidden");
+    } else {
+        flag.textContent = `⚠️ "${mdl.trim()}" isn't in the model catalog. ` +
+            `Try selecting a matching model from the list so par levels track it. ` +
+            `If there's no match, you can keep this value.`;
+        flag.classList.remove("hidden");
+    }
 }
 
 // ── Load depot inventory ──────────────────────────────────────────────────
@@ -380,6 +418,7 @@ function openAddDeviceModal() {
     document.getElementById("addError").classList.add("hidden");
     document.getElementById("addManufacturerDropdown").classList.add("hidden");
     document.getElementById("addModelDropdown").classList.add("hidden");
+    document.getElementById("addModelCatalogFlag").classList.add("hidden");
     saveBlockedByConflict = false;
     updateSaveButtonState();
     resetPhotoStaging("add");
@@ -473,6 +512,9 @@ document.getElementById("addSerial").addEventListener("input", () => {
             document.getElementById("addManufacturer").value = data.manufacturer || "";
             document.getElementById("addModel").value = data.model || "";
             applyLexmarkStrip();
+            // CMDB spellings may not match the catalog — flag if so, so the tech
+            // can reconcile before saving (par levels depend on the match).
+            evaluateModelCatalogFlag();
         }
 
         // 2) Cross-table conflict check — blocks Save and shows the red badge
@@ -549,14 +591,16 @@ function setupCombobox(inputId, dropdownId, getOptionsAsync, onSelect) {
 setupCombobox(
     "addManufacturer",
     "addManufacturerDropdown",
-    async () => { if (!cmdbManufacturers.length) await loadCmdbManufacturers(); return cmdbManufacturers; },
+    async () => { if (!mfrManufacturers.length) await loadMfrManufacturers(); return mfrManufacturers; },
     (val) => {
         // Clear cached model list for the new manufacturer to force refresh
         document.getElementById("addModel").value = "";
-        delete cmdbModelsCache[val];
+        delete mfrModelsCache[val];
         // Selecting Lexmark must trigger the leading-S strip on the serial
         // (programmatic input.value changes don't fire native change events).
         applyLexmarkStrip();
+        // Model just cleared → hide any stale catalog flag.
+        evaluateModelCatalogFlag();
     }
 );
 
@@ -565,10 +609,13 @@ setupCombobox(
     "addModelDropdown",
     async () => {
         const mfr = document.getElementById("addManufacturer").value.trim();
-        return await loadCmdbModels(mfr);
+        return await loadMfrModels(mfr);
     },
-    () => {}
+    () => { evaluateModelCatalogFlag(); }  // picking a catalog value clears the flag
 );
+
+// Free-text typing in the Model field also re-evaluates the flag.
+document.getElementById("addModel").addEventListener("input", evaluateModelCatalogFlag);
 
 // ── Add Device save ───────────────────────────────────────────────────────
 document.getElementById("addSave").addEventListener("click", async () => {
@@ -874,4 +921,4 @@ async function uploadStagedPhotos(modal, claimId) {
 
 // ── Initial load ──────────────────────────────────────────────────────────
 loadDepotSites();
-loadCmdbManufacturers();
+loadMfrManufacturers();
