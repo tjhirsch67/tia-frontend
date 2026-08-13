@@ -43,8 +43,7 @@
                         <option value="">-- Select a depot --</option>
                     </select>
                 </div>
-                <div class="form-group" style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap;">
-                    <button class="btn btn-secondary" id="refreshBtn" disabled>&#x21BB; Refresh</button>
+                <div class="form-group" style="display:flex; align-items:flex-end; gap:8px;">
                     <button class="btn btn-primary" id="addDeviceBtn" disabled>&#x2795; Add Device</button>
                     <button class="btn btn-primary" id="shipPalletBtn" disabled title="Ship all Pending Transfer devices to CORD or another depot">&#x1F4E6; Ship Pallet</button>
                 </div>
@@ -53,9 +52,10 @@
 
         <!-- Inventory table -->
         <div class="card" id="inventoryCard" style="display:none;">
-            <div class="card-title">
+            <div class="card-title" style="display:flex; align-items:center; gap:8px;">
                 <span id="inventoryTitle">Inventory</span>
-                <span id="inventoryCount" style="color:#666; font-weight:400; font-size:0.9rem; margin-left:8px;"></span>
+                <span id="inventoryCount" style="color:#666; font-weight:400; font-size:0.9rem;"></span>
+                <button class="btn btn-secondary btn-sm" id="refreshBtn" disabled style="margin-left:auto;">&#x21BB; Refresh</button>
             </div>
             <div style="overflow-x:auto;">
                 <table class="data-table" id="inventoryTable">
