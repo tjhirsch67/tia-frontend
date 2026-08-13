@@ -68,6 +68,7 @@ function statusBadge(status) {
         "New Damaged":        "badge-red",
         "In Transit":         "badge-blue",
         "Damaged In Transit": "badge-red",
+        "Pending Transfer":   "badge-purple",
     }[status] || "badge-gray";
     return `<span class="badge ${cls}">${status}</span>`;
 }
@@ -202,7 +203,7 @@ function renderInventoryTable() {
                 <button class="btn btn-primary btn-sm" data-action="check-in" data-serial="${escapeHtml(r.serial)}">Check In</button>
                 <button class="btn btn-secondary btn-sm" data-action="damaged" data-serial="${escapeHtml(r.serial)}" style="background:#fdecea; color:#c0392b; border:1px solid #c0392b;">Damaged</button>
             `;
-        } else if (status === "In Stock" || status === "In Maintenance") {
+        } else if (status === "In Stock" || status === "In Maintenance" || status === "Pending Transfer") {
             actions = `<button class="btn btn-secondary btn-sm" data-action="edit" data-serial="${escapeHtml(r.serial)}">Edit</button>`;
         } else if (status === "Damaged In Transit") {
             actions = `<span style="color:#666; font-size:0.85rem;">Close claim in IMS</span>`;
@@ -232,6 +233,15 @@ function renderInventoryTable() {
             else if (action === "edit")    openEditModal(row);
         });
     });
+
+    updateShipPalletBtn();
+}
+
+// Ship Pallet is only actionable when the selected depot has ≥1 device staged
+// as Pending Transfer.
+function updateShipPalletBtn() {
+    const pending = inventoryRows.filter(r => r.status === "Pending Transfer");
+    document.getElementById("shipPalletBtn").disabled = !currentFacility || pending.length === 0;
 }
 
 // ── Check In ──────────────────────────────────────────────────────────────
@@ -241,6 +251,7 @@ function openCheckInModal(row) {
     checkInTarget = row;
     document.getElementById("checkInSerial").textContent = row.serial;
     document.getElementById("checkInMfrModel").textContent = `${row.manufacturer} ${row.model}`;
+    document.getElementById("checkInStatusSelect").value = "In Stock";
     document.getElementById("checkInError").classList.add("hidden");
     document.getElementById("checkInModal").classList.remove("hidden");
 }
@@ -255,13 +266,15 @@ document.getElementById("checkInConfirm").addEventListener("click", async () => 
     const btn = document.getElementById("checkInConfirm");
     btn.disabled = true;
     btn.textContent = "Checking in…";
+    const checkInStatus = document.getElementById("checkInStatusSelect").value;
     const res = await Auth.apiCall(
         "PATCH",
-        `/depot/inventory/${encodeURIComponent(checkInTarget.serial)}/check-in`
+        `/depot/inventory/${encodeURIComponent(checkInTarget.serial)}/check-in`,
+        { status: checkInStatus }
     );
     if (res && res.ok) {
         document.getElementById("checkInModal").classList.add("hidden");
-        showSuccess(`${checkInTarget.serial} checked in.`);
+        showSuccess(`${checkInTarget.serial} checked in as ${checkInStatus}.`);
         checkInTarget = null;
         await loadDepotInventory(currentFacility);
     } else {
@@ -389,9 +402,120 @@ document.getElementById("editConfirm").addEventListener("click", async () => {
     btn.textContent = "Save";
 });
 
+// ── Ship Pallet (Pending Transfer → In Transit at destination) ────────────
+const CORD_DESTINATION = "CORD";
+
+function openPalletModal() {
+    if (!currentFacility) return;
+    const pending = inventoryRows.filter(r => r.status === "Pending Transfer");
+    if (!pending.length) return;
+
+    document.getElementById("palletOrigin").textContent = currentFacility;
+
+    // Destination: CORD first, then every other depot except the origin
+    const destSel = document.getElementById("palletDestination");
+    destSel.innerHTML = "";
+    const cordOpt = document.createElement("option");
+    cordOpt.value = CORD_DESTINATION;
+    cordOpt.textContent = "CORD Warehouse";
+    destSel.appendChild(cordOpt);
+    depotSites
+        .filter(site => site.facility !== currentFacility)
+        .forEach(site => {
+            const opt = document.createElement("option");
+            opt.value = site.facility;
+            opt.textContent = site.facility;
+            destSel.appendChild(opt);
+        });
+
+    document.getElementById("palletMdm").value = "";
+    document.getElementById("palletCount").textContent = "";
+
+    // Device checklist — all checked by default; unchecking holds a device back
+    const list = document.getElementById("palletDeviceList");
+    list.innerHTML = pending.map(r => `
+        <label style="display:flex; align-items:center; gap:8px; padding:4px 2px; cursor:pointer;">
+            <input type="checkbox" class="pallet-device" value="${escapeHtml(r.serial)}" checked>
+            <span><strong>${escapeHtml(r.serial)}</strong> — ${escapeHtml(r.manufacturer)} ${escapeHtml(r.model)}</span>
+        </label>
+    `).join("");
+    list.querySelectorAll(".pallet-device").forEach(cb =>
+        cb.addEventListener("change", updatePalletCount)
+    );
+    updatePalletCount();
+
+    document.getElementById("palletError").classList.add("hidden");
+    document.getElementById("palletModal").classList.remove("hidden");
+}
+
+function getPalletSelectedSerials() {
+    return Array.from(
+        document.querySelectorAll("#palletDeviceList .pallet-device:checked")
+    ).map(cb => cb.value);
+}
+
+function updatePalletCount() {
+    const n = getPalletSelectedSerials().length;
+    document.getElementById("palletCount").textContent =
+        `(${n} of ${document.querySelectorAll("#palletDeviceList .pallet-device").length} selected)`;
+    document.getElementById("palletConfirm").disabled = n === 0;
+}
+
+document.getElementById("shipPalletBtn").addEventListener("click", openPalletModal);
+document.getElementById("palletCancel").addEventListener("click", () => {
+    document.getElementById("palletModal").classList.add("hidden");
+});
+
+document.getElementById("palletConfirm").addEventListener("click", async () => {
+    const serials = getPalletSelectedSerials();
+    const destination = document.getElementById("palletDestination").value;
+    const mdm = document.getElementById("palletMdm").value.trim();
+    const errDiv = document.getElementById("palletError");
+
+    if (!mdm) {
+        errDiv.textContent = "MDM tracking number is required.";
+        errDiv.classList.remove("hidden");
+        return;
+    }
+    if (!serials.length) return;
+
+    const destLabel = destination === CORD_DESTINATION ? "CORD Warehouse" : destination;
+    if (!confirm(
+        `Ship ${serials.length} device${serials.length !== 1 ? "s" : ""} from ` +
+        `${currentFacility} to ${destLabel}?\n\nMDM: ${mdm}`
+    )) return;
+
+    const btn = document.getElementById("palletConfirm");
+    btn.disabled = true;
+    btn.textContent = "Shipping…";
+    const res = await Auth.apiCall("POST", "/depot/transfer", {
+        facility: currentFacility,
+        destination: destination,
+        mdm_tracking: mdm,
+        serials: serials,
+    });
+    if (res && res.ok) {
+        const data = await res.json();
+        document.getElementById("palletModal").classList.add("hidden");
+        showSuccess(
+            `Pallet shipped: ${data.transferred} device${data.transferred !== 1 ? "s" : ""} ` +
+            `to ${data.destination} (MDM ${data.mdm_tracking}).`
+        );
+        await loadDepotInventory(currentFacility);
+    } else {
+        let detail = "Pallet shipment failed.";
+        try { const err = await res.json(); if (err.detail) detail = err.detail; } catch (e) {}
+        errDiv.textContent = detail;
+        errDiv.classList.remove("hidden");
+    }
+    btn.disabled = false;
+    btn.textContent = "Ship Pallet";
+});
+
 // ── Wire-up ───────────────────────────────────────────────────────────────
 document.getElementById("depotSelect").addEventListener("change", e => {
     const facility = e.target.value;
+    document.getElementById("shipPalletBtn").disabled = true; // re-enabled after load if pending devices exist
     if (!facility) {
         document.getElementById("inventoryCard").style.display = "none";
         document.getElementById("addDeviceBtn").disabled = true;

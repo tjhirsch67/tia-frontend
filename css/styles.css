@@ -303,6 +303,7 @@ body {
 .badge-blue   { background: #eaf2fb; color: #2E74B5; }
 .badge-gray   { background: #f0f4f8; color: #666; }
 .badge-red    { background: #fdecea; color: #c0392b; }
+.badge-purple { background: #f1e8fb; color: #6f42c1; }
 
 /* ── Table ────────────────────────────────────────────────────────────────── */
 .table-wrapper {

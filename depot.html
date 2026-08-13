@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Depot Inventory</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260523">
+    <link rel="stylesheet" href="css/styles.css?v=20260812">
 </head>
 <body>
 
@@ -43,9 +43,10 @@
                         <option value="">-- Select a depot --</option>
                     </select>
                 </div>
-                <div class="form-group" style="display:flex; align-items:flex-end; gap:8px;">
+                <div class="form-group" style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap;">
                     <button class="btn btn-secondary" id="refreshBtn" disabled>&#x21BB; Refresh</button>
                     <button class="btn btn-primary" id="addDeviceBtn" disabled>&#x2795; Add Device</button>
+                    <button class="btn btn-primary" id="shipPalletBtn" disabled title="Ship all Pending Transfer devices to CORD or another depot">&#x1F4E6; Ship Pallet</button>
                 </div>
             </div>
         </div>
@@ -87,7 +88,13 @@
                 <tr><td><b>Serial</b></td><td id="checkInSerial"></td></tr>
                 <tr><td><b>Manufacturer / Model</b></td><td id="checkInMfrModel"></td></tr>
             </table>
-            <p style="color:#666; font-size:0.9rem; margin-bottom:16px;">Status will change from <b>In Transit</b> to <b>In Stock</b>.</p>
+            <div class="form-group">
+                <label for="checkInStatusSelect">Check in as</label>
+                <select id="checkInStatusSelect">
+                    <option value="In Stock">In Stock</option>
+                    <option value="In Maintenance">In Maintenance</option>
+                </select>
+            </div>
             <div id="checkInError" class="error-message hidden"></div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="checkInCancel">Cancel</button>
@@ -138,13 +145,45 @@
                 <select id="editStatusSelect">
                     <option value="In Stock">In Stock</option>
                     <option value="In Maintenance">In Maintenance</option>
+                    <option value="Pending Transfer">Pending Transfer</option>
                 </select>
-                <p style="color:#666; font-size:0.85rem; margin-top:6px;">To flag a device as Damaged In Transit, use the <b>Damaged In Transit</b> action on an In-Transit row. For a damaged device that's already In Stock, open a damaged claim in IMS directly.</p>
+                <p style="color:#666; font-size:0.85rem; margin-top:6px;"><b>Pending Transfer</b> stages the device for the next pallet shipment (Ship Pallet button). To flag a device as Damaged In Transit, use the <b>Damaged In Transit</b> action on an In-Transit row. For a damaged device that's already In Stock, open a damaged claim in IMS directly.</p>
             </div>
             <div id="editError" class="error-message hidden"></div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="editCancel">Cancel</button>
                 <button class="btn btn-primary" id="editConfirm">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ship Pallet modal (Pending Transfer → In Transit at destination) -->
+    <div id="palletModal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:600px;">
+            <h3 style="color:#1F4E79; margin-bottom:4px;">Ship Pallet</h3>
+            <p style="color:#666; font-size:0.85rem; margin-bottom:14px;">Shipping from: <b id="palletOrigin"></b></p>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="palletDestination">Destination <span class="required">*</span></label>
+                    <select id="palletDestination"></select>
+                </div>
+                <div class="form-group">
+                    <label for="palletMdm">MDM Tracking # <span class="required">*</span></label>
+                    <input type="text" id="palletMdm" placeholder="MDM tracking number" maxlength="20">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Devices on this pallet <span id="palletCount" style="color:#666; font-weight:400;"></span></label>
+                <div id="palletDeviceList" style="max-height:260px; overflow-y:auto; border:1px solid #d1d5db; border-radius:6px; padding:8px;"></div>
+                <p style="color:#666; font-size:0.85rem; margin-top:6px;">All Pending Transfer devices are selected. Uncheck any that aren't going on this pallet — they stay Pending Transfer for the next shipment.</p>
+            </div>
+
+            <div id="palletError" class="error-message hidden"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="palletCancel">Cancel</button>
+                <button class="btn btn-primary" id="palletConfirm">Ship Pallet</button>
             </div>
         </div>
     </div>
@@ -255,6 +294,6 @@
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
     <script src="js/photo-helpers.js?v=20260524"></script>
-    <script src="js/depot.js?v=20260711"></script>
+    <script src="js/depot.js?v=20260812"></script>
 </body>
 </html>

@@ -189,7 +189,7 @@ function clearDeviceFields() {
 // Service types whose backend submission blocks on bad depot status. Mirrors
 // PULL_FROM_DEPOT_SERVICE_TYPES in submissions.py.
 const PULL_FROM_DEPOT_TYPES = new Set(["Install-New", "Move", "Hot Swap"]);
-const BAD_DEPOT_STATUSES = new Set(["In Transit", "In Maintenance", "Damaged In Transit"]);
+const BAD_DEPOT_STATUSES = new Set(["In Transit", "In Maintenance", "Damaged In Transit", "Pending Transfer"]);
 
 // Latest depot-status snapshot for the current serial; null when serial is
 // not at any depot or the lookup hasn't run yet.
@@ -265,6 +265,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
                 "In Transit":         "wait for depot check-in",
                 "In Maintenance":     "mark the device In Stock from the depot tab when repair is complete",
                 "Damaged In Transit": "resolve the damaged claim in IMS",
+                "Pending Transfer":   "edit the device back to In Stock from the depot tab (it's staged on an outbound pallet)",
             }[depotStatusInfo.status] || "resolve the depot state";
             notice.textContent = `✗ Device is at ${depotStatusInfo.depot_facility} with status "${depotStatusInfo.status}" — ` +
                 `cannot Install / Move / Hot Swap. Please ${advice} first.`;
