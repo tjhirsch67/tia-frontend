@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Depot Inventory</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260812">
+    <link rel="stylesheet" href="css/styles.css?v=20260902b">
 </head>
 <body>
 
@@ -292,7 +292,7 @@
 
     <!-- Depot Audit modal -->
     <div id="auditModal" class="modal-overlay hidden">
-        <div class="modal-content" style="max-width:760px;">
+        <div class="modal" style="max-width:760px; max-height:88vh; overflow-y:auto;">
             <h3 id="auditTitle">Audit Depot</h3>
 
             <!-- Step 1: collect serials -->
@@ -303,23 +303,23 @@
                     admin to correct in IMS.
                 </p>
 
-                <div class="form-group">
-                    <label>Audit type</label>
-                    <label style="font-weight:400; display:block; margin:4px 0;">
-                        <input type="radio" name="auditMode" value="full" checked />
-                        <b>Full audit</b> &mdash; anything at this depot you don&rsquo;t scan is reported missing
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:0.88rem; font-weight:600; color:#444; margin-bottom:5px;">Audit type</div>
+                    <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400; font-size:0.92rem; margin-bottom:6px; cursor:pointer;">
+                        <input type="radio" name="auditMode" value="full" checked style="width:auto; margin-top:3px; flex:none;" />
+                        <span><b>Full audit</b> &mdash; anything at this depot you don&rsquo;t scan is reported missing</span>
                     </label>
-                    <label style="font-weight:400; display:block;">
-                        <input type="radio" name="auditMode" value="spot" />
-                        <b>Spot check</b> &mdash; only what you scan is checked; nothing is reported missing
+                    <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400; font-size:0.92rem; cursor:pointer;">
+                        <input type="radio" name="auditMode" value="spot" style="width:auto; margin-top:3px; flex:none;" />
+                        <span><b>Spot check</b> &mdash; only what you scan is checked; nothing is reported missing</span>
                     </label>
                 </div>
 
                 <div class="form-group">
                     <label for="auditScanInput">Scan or type a serial, one at a time</label>
                     <div style="display:flex; gap:8px;">
-                        <input type="text" id="auditScanInput" placeholder="Serial number" style="flex:1;" autocomplete="off" />
-                        <button type="button" class="btn btn-secondary scan-btn" id="auditScanBtn">&#x1F4F7; Scan</button>
+                        <input type="text" id="auditScanInput" placeholder="Serial number" style="flex:1 1 auto; min-width:0;" autocomplete="off" />
+                        <button type="button" class="btn btn-secondary scan-btn" id="auditScanBtn" style="flex:none;">&#x1F4F7; Scan</button>
                     </div>
                 </div>
 
@@ -331,7 +331,7 @@
 
                 <div class="form-group">
                     <label for="auditFile">&hellip;or upload a CSV / Excel file</label>
-                    <input type="file" id="auditFile" accept=".csv,.xlsx,.xls" />
+                    <input type="file" id="auditFile" accept=".csv,.xlsx,.xls" style="width:auto; padding:6px 0; border:none;" />
                     <div id="auditFileNote" style="font-size:0.85rem; color:#666; margin-top:4px;"></div>
                 </div>
 
@@ -342,7 +342,7 @@
                 </div>
 
                 <div id="auditError" class="error-message hidden"></div>
-                <div class="modal-actions">
+                <div class="modal-actions" style="margin-top:16px;">
                     <button class="btn btn-secondary" id="auditCancel">Cancel</button>
                     <button class="btn btn-primary" id="auditRun" disabled>Run Audit</button>
                 </div>
@@ -362,7 +362,7 @@
                 </div>
 
                 <div id="auditSendResult" style="margin-top:10px;"></div>
-                <div class="modal-actions">
+                <div class="modal-actions" style="margin-top:16px;">
                     <button class="btn btn-secondary" id="auditClose">Close</button>
                     <button class="btn btn-primary" id="auditDownload">&#x2193; Download CSV</button>
                 </div>
@@ -376,6 +376,6 @@
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
     <script src="js/photo-helpers.js?v=20260524"></script>
-    <script src="js/depot.js?v=20260902"></script>
+    <script src="js/depot.js?v=20260902b"></script>
 </body>
 </html>
