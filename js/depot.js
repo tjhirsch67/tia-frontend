@@ -1210,7 +1210,7 @@ function renderAuditResults(data) {
     auditEl("auditSendPrompt").innerHTML = recips.length
         ? `Send this report to <b>${recips.map(escapeHtml).join(", ")}</b>?`
         : `<span style="color:#c0392b;">No recipients are configured for this depot.</span>
-           Ask an admin to set a Tech Lead for ${escapeHtml(data.facility)} in IMS
+           Ask an admin to set a Team Lead for ${escapeHtml(data.facility)} in IMS
            (Admin &rarr; Depot Sites) or add a Depot Audit address
            (Admin &rarr; Notifications). You can still download the CSV.`;
     auditEl("auditSendBtn").style.display = recips.length ? "" : "none";
