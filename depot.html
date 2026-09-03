@@ -46,6 +46,7 @@
                 <div class="form-group" style="display:flex; align-items:flex-end; gap:8px;">
                     <button class="btn btn-primary" id="addDeviceBtn" disabled>&#x2795; Add Device</button>
                     <button class="btn btn-primary" id="shipPalletBtn" disabled title="Ship all Pending Transfer devices to CORD or another depot">&#x1F4E6; Ship Pallet</button>
+                    <button class="btn btn-secondary" id="auditBtn" disabled title="Count this depot against IMS and report the differences">&#x1F9FE; Audit Depot</button>
                 </div>
             </div>
         </div>
@@ -288,12 +289,93 @@
         </div>
     </div>
 
+
+    <!-- Depot Audit modal -->
+    <div id="auditModal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width:760px;">
+            <h3 id="auditTitle">Audit Depot</h3>
+
+            <!-- Step 1: collect serials -->
+            <div id="auditSetup">
+                <p style="color:#555; font-size:0.92rem;">
+                    Count what is physically on the floor. The audit
+                    <b>changes nothing</b> &mdash; it reports differences for an
+                    admin to correct in IMS.
+                </p>
+
+                <div class="form-group">
+                    <label>Audit type</label>
+                    <label style="font-weight:400; display:block; margin:4px 0;">
+                        <input type="radio" name="auditMode" value="full" checked />
+                        <b>Full audit</b> &mdash; anything at this depot you don&rsquo;t scan is reported missing
+                    </label>
+                    <label style="font-weight:400; display:block;">
+                        <input type="radio" name="auditMode" value="spot" />
+                        <b>Spot check</b> &mdash; only what you scan is checked; nothing is reported missing
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="auditScanInput">Scan or type a serial, one at a time</label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="auditScanInput" placeholder="Serial number" style="flex:1;" autocomplete="off" />
+                        <button type="button" class="btn btn-secondary scan-btn" id="auditScanBtn">&#x1F4F7; Scan</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="auditPasteBox">&hellip;or paste a list (one serial per line)</label>
+                    <textarea id="auditPasteBox" rows="3" placeholder="ABC123&#10;DEF456"></textarea>
+                    <button type="button" class="btn btn-secondary btn-sm" id="auditAddPasted" style="margin-top:6px;">Add pasted serials</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="auditFile">&hellip;or upload a CSV / Excel file</label>
+                    <input type="file" id="auditFile" accept=".csv,.xlsx,.xls" />
+                    <div id="auditFileNote" style="font-size:0.85rem; color:#666; margin-top:4px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Serials collected: <span id="auditCount">0</span></label>
+                    <div id="auditList" style="max-height:160px; overflow:auto; border:1px solid #ddd; border-radius:4px; padding:6px; font-size:0.88rem;"></div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="auditClearList" style="margin-top:6px;">Clear list</button>
+                </div>
+
+                <div id="auditError" class="error-message hidden"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="auditCancel">Cancel</button>
+                    <button class="btn btn-primary" id="auditRun" disabled>Run Audit</button>
+                </div>
+            </div>
+
+            <!-- Step 2: results -->
+            <div id="auditResults" class="hidden">
+                <div id="auditSummary"></div>
+                <div id="auditBuckets" style="max-height:340px; overflow:auto; margin-top:10px;"></div>
+
+                <div id="auditSendBox" style="margin-top:14px; padding:12px; border:1px solid #ddd; border-radius:6px; background:#fafafa;">
+                    <div id="auditSendPrompt"></div>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <button class="btn btn-primary" id="auditSendBtn">&#x2709; Send Report</button>
+                        <button class="btn btn-secondary" id="auditSkipSend">Not now</button>
+                    </div>
+                </div>
+
+                <div id="auditSendResult" style="margin-top:10px;"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="auditClose">Close</button>
+                    <button class="btn btn-primary" id="auditDownload">&#x2193; Download CSV</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Android native camera capture -->
     <input type="file" id="barcodeCapture" accept="image/*" capture="environment" style="display:none;">
 
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
     <script src="js/photo-helpers.js?v=20260524"></script>
-    <script src="js/depot.js?v=20260812"></script>
+    <script src="js/depot.js?v=20260902"></script>
 </body>
 </html>

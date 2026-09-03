@@ -519,10 +519,12 @@ document.getElementById("depotSelect").addEventListener("change", e => {
     if (!facility) {
         document.getElementById("inventoryCard").style.display = "none";
         document.getElementById("addDeviceBtn").disabled = true;
+        document.getElementById("auditBtn").disabled = true;
         currentFacility = null;
         return;
     }
     document.getElementById("addDeviceBtn").disabled = false;
+    document.getElementById("auditBtn").disabled = false;
     loadDepotInventory(facility);
 });
 
@@ -804,7 +806,7 @@ document.getElementById("addSave").addEventListener("click", async () => {
 // ── Mobile barcode scanning (matches form.js pattern) ─────────────────────
 // Hide scan buttons on desktop
 if (!isMobile) {
-    ["addScanSerialBtn", "addScanAssetBtn", "addScanMercyBtn"].forEach(id => {
+    ["addScanSerialBtn", "addScanAssetBtn", "addScanMercyBtn", "auditScanBtn"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.style.display = "none";
     });
@@ -1046,3 +1048,287 @@ async function uploadStagedPhotos(modal, claimId) {
 // ── Initial load ──────────────────────────────────────────────────────────
 loadDepotSites();
 loadMfrManufacturers();
+
+
+// ═════════════════════════════════════════════════════════════════════════
+// Depot Audit
+// ═════════════════════════════════════════════════════════════════════════
+// Count what is physically at a depot and report the differences. The audit
+// writes nothing to inventory — an admin makes the corrections in IMS. The
+// emailed report goes out only when the tech confirms, after the CSV is
+// already downloadable.
+
+let auditSerials = [];      // collected serials, in scan order
+let auditResult = null;     // last run's response
+let auditRunning = false;
+
+const AUDIT_BUCKETS = [
+    ["missing",   "Missing",                            "#c0392b"],
+    ["elsewhere", "Found elsewhere",                    "#c0392b"],
+    ["unknown",   "Unknown to IMS",                     "#e67e22"],
+    ["attention", "Needs attention",                    "#e67e22"],
+    ["inbound",   "Expected inbound (not yet arrived)", "#2980b9"],
+    ["matched",   "Matched",                            "#27ae60"],
+];
+
+function auditEl(id) { return document.getElementById(id); }
+
+function openAuditModal() {
+    if (!currentFacility) return;
+    auditSerials = [];
+    auditResult = null;
+    auditEl("auditTitle").textContent = `Audit — ${currentFacility}`;
+    auditEl("auditSetup").classList.remove("hidden");
+    auditEl("auditResults").classList.add("hidden");
+    auditEl("auditError").classList.add("hidden");
+    auditEl("auditScanInput").value = "";
+    auditEl("auditPasteBox").value = "";
+    auditEl("auditFile").value = "";
+    auditEl("auditFileNote").textContent = "";
+    auditEl("auditSendResult").innerHTML = "";
+    auditEl("auditSendBox").style.display = "";
+    document.querySelector('input[name="auditMode"][value="full"]').checked = true;
+    renderAuditList();
+    auditEl("auditModal").classList.remove("hidden");
+}
+
+function closeAuditModal() {
+    auditEl("auditModal").classList.add("hidden");
+}
+
+function auditMode() {
+    const el = document.querySelector('input[name="auditMode"]:checked');
+    return el ? el.value : "full";
+}
+
+// One entry point for every input path, so normalization and de-duping cannot
+// differ between scanning, pasting and uploading.
+function addAuditSerials(values) {
+    let added = 0, dupes = 0;
+    for (const raw of values) {
+        const v = String(raw || "").trim().toUpperCase();
+        if (!v) continue;
+        if (auditSerials.includes(v)) { dupes++; continue; }
+        auditSerials.push(v);
+        added++;
+    }
+    renderAuditList();
+    return { added, dupes };
+}
+
+function removeAuditSerial(serial) {
+    auditSerials = auditSerials.filter(s => s !== serial);
+    renderAuditList();
+}
+
+function renderAuditList() {
+    auditEl("auditCount").textContent = auditSerials.length;
+    auditEl("auditRun").disabled = auditSerials.length === 0 && auditMode() === "spot";
+    const list = auditEl("auditList");
+    if (!auditSerials.length) {
+        list.innerHTML = '<span style="color:#888;">Nothing scanned yet.</span>';
+        return;
+    }
+    // Newest first: a tech scanning a pile wants to see the one just added.
+    list.innerHTML = auditSerials.slice().reverse().map(s =>
+        `<div style="display:flex; justify-content:space-between; padding:2px 0;">
+            <span>${escapeHtml(s)}</span>
+            <a href="#" data-audit-remove="${escapeHtml(s)}" style="color:#c0392b; text-decoration:none;">&times;</a>
+        </div>`).join("");
+}
+
+async function runAudit() {
+    if (auditRunning) return;
+    auditRunning = true;
+    const btn = auditEl("auditRun");
+    btn.disabled = true;
+    btn.textContent = "Running…";
+    auditEl("auditError").classList.add("hidden");
+    try {
+        const res = await Auth.apiCall("POST", "/depot/audit", {
+            facility: currentFacility,
+            mode: auditMode(),
+            serials: auditSerials,
+        });
+        if (!res || !res.ok) {
+            const body = await (res ? res.json().catch(() => ({})) : {});
+            auditEl("auditError").textContent = body.detail || "Audit failed.";
+            auditEl("auditError").classList.remove("hidden");
+            return;
+        }
+        auditResult = await res.json();
+        renderAuditResults(auditResult);
+    } finally {
+        auditRunning = false;
+        btn.disabled = false;
+        btn.textContent = "Run Audit";
+    }
+}
+
+function renderAuditResults(data) {
+    const s = data.summary;
+    const problems = s.missing + s.elsewhere + s.unknown + s.attention;
+    const modeLabel = data.mode === "full" ? "Full audit" : "Spot check";
+
+    auditEl("auditSummary").innerHTML = `
+        <div style="font-weight:600; margin-bottom:6px;">
+            ${escapeHtml(modeLabel)} — ${problems === 0
+                ? "everything lined up."
+                : `${problems} finding${problems === 1 ? "" : "s"}.`}
+        </div>
+        <div style="font-size:0.9rem; color:#555;">
+            ${s.scanned} scanned · ${s.depot_total} in IMS at this depot ·
+            ${s.matched} matched · ${s.missing} missing · ${s.elsewhere} elsewhere ·
+            ${s.unknown} unknown · ${s.attention} needing attention
+            ${s.duplicates_ignored ? ` · ${s.duplicates_ignored} duplicate scan${s.duplicates_ignored === 1 ? "" : "s"} ignored` : ""}
+        </div>
+        ${data.mode === "spot"
+            ? '<div style="font-size:0.85rem; color:#666; margin-top:4px;">Spot check — devices you did not scan were not evaluated.</div>'
+            : ""}`;
+
+    auditEl("auditBuckets").innerHTML = AUDIT_BUCKETS.map(([key, label, color]) => {
+        const rows = data[key] || [];
+        if (!rows.length) return "";
+        const body = rows.map(r => `
+            <tr>
+                <td><b>${escapeHtml(r.serial)}</b></td>
+                <td>${escapeHtml(r.manufacturer)} ${escapeHtml(r.model)}</td>
+                <td>${escapeHtml(r.status)}</td>
+                <td style="font-size:0.85rem; color:#555;">${escapeHtml(r.detail)}</td>
+            </tr>`).join("");
+        return `
+            <div style="margin-top:10px;">
+                <div style="font-weight:600; color:${color};">${label} (${rows.length})</div>
+                <table class="data-table" style="width:100%;">
+                    <thead><tr><th>Serial</th><th>Device</th><th>IMS Status</th><th>Detail</th></tr></thead>
+                    <tbody>${body}</tbody>
+                </table>
+            </div>`;
+    }).join("") || '<div style="color:#888;">No findings.</div>';
+
+    const recips = data.recipients || [];
+    auditEl("auditSendPrompt").innerHTML = recips.length
+        ? `Send this report to <b>${recips.map(escapeHtml).join(", ")}</b>?`
+        : `<span style="color:#c0392b;">No recipients are configured for this depot.</span>
+           Ask an admin to set a Tech Lead for ${escapeHtml(data.facility)} in IMS
+           (Admin &rarr; Depot Sites) or add a Depot Audit address
+           (Admin &rarr; Notifications). You can still download the CSV.`;
+    auditEl("auditSendBtn").style.display = recips.length ? "" : "none";
+
+    auditEl("auditSetup").classList.add("hidden");
+    auditEl("auditResults").classList.remove("hidden");
+}
+
+function downloadAuditCsv() {
+    if (!auditResult) return;
+    // The backend built this CSV; the emailed attachment is the same text, so
+    // the download and the report can never disagree.
+    const blob = new Blob([auditResult.csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const facility = (auditResult.facility || "depot").replace(/[^A-Za-z0-9-]+/g, "_");
+    a.href = url;
+    a.download = `TIA_Depot_Audit_${facility}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+async function sendAuditReport() {
+    if (!auditResult) return;
+    const btn = auditEl("auditSendBtn");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    try {
+        const res = await Auth.apiCall("POST", "/depot/audit/send", {
+            audit_id: auditResult.audit_id,
+            facility: auditResult.facility,
+            mode: auditResult.mode,
+            serials: auditSerials,
+        });
+        const data = res ? await res.json().catch(() => ({})) : {};
+        const ok = res && res.ok && data.sent;
+        auditEl("auditSendResult").innerHTML = ok
+            ? `<div class="success-message">Report sent to ${(data.recipients || []).map(escapeHtml).join(", ")}.</div>`
+            : `<div class="error-message">${escapeHtml(data.detail || "Could not send the report.")}</div>`;
+        if (ok) auditEl("auditSendBox").style.display = "none";
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "\u2709 Send Report";
+    }
+}
+
+async function parseAuditFile(file) {
+    const note = auditEl("auditFileNote");
+    note.textContent = "Reading…";
+    try {
+        const fd = new FormData();
+        fd.append("file", file);
+        // Raw fetch: Auth.apiCall forces a JSON content-type, which strips the
+        // multipart boundary. Same reason as the photo upload above.
+        const res = await fetch(`${CONFIG.API_BASE}/depot/audit/parse`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${Auth.getToken()}` },
+            body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            note.textContent = data.detail || "Could not read that file.";
+            return;
+        }
+        const { added, dupes } = addAuditSerials(data.serials || []);
+        note.textContent = `Read ${data.count} serial${data.count === 1 ? "" : "s"} from ${data.source_column}` +
+            ` — added ${added}${dupes ? `, ${dupes} already in the list` : ""}.`;
+    } catch (err) {
+        note.textContent = "Could not read that file.";
+    }
+}
+
+// ── Audit wiring ──────────────────────────────────────────────────────────
+auditEl("auditBtn").addEventListener("click", openAuditModal);
+auditEl("auditCancel").addEventListener("click", closeAuditModal);
+auditEl("auditClose").addEventListener("click", closeAuditModal);
+auditEl("auditRun").addEventListener("click", runAudit);
+auditEl("auditDownload").addEventListener("click", downloadAuditCsv);
+auditEl("auditSendBtn").addEventListener("click", sendAuditReport);
+auditEl("auditSkipSend").addEventListener("click", () => {
+    auditEl("auditSendBox").style.display = "none";
+});
+auditEl("auditClearList").addEventListener("click", () => {
+    auditSerials = [];
+    renderAuditList();
+});
+auditEl("auditAddPasted").addEventListener("click", () => {
+    const box = auditEl("auditPasteBox");
+    const { added, dupes } = addAuditSerials(box.value.split(/[\r\n,;\t]+/));
+    box.value = "";
+    auditEl("auditFileNote").textContent =
+        `Added ${added} serial${added === 1 ? "" : "s"}${dupes ? `, ${dupes} already in the list` : ""}.`;
+});
+auditEl("auditFile").addEventListener("change", (e) => {
+    if (e.target.files && e.target.files[0]) parseAuditFile(e.target.files[0]);
+});
+auditEl("auditScanBtn").addEventListener("click", () => startScan("auditScanInput"));
+// A scan writes into the input and fires "input"; take the value, add it to the
+// list and clear the field so the next scan is ready without a tap.
+auditEl("auditScanInput").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    if (v.length >= 4) {
+        addAuditSerials([v]);
+        e.target.value = "";
+    }
+});
+auditEl("auditScanInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        addAuditSerials([e.target.value]);
+        e.target.value = "";
+    }
+});
+auditEl("auditList").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-audit-remove]");
+    if (!t) return;
+    e.preventDefault();
+    removeAuditSerial(t.getAttribute("data-audit-remove"));
+});
+document.querySelectorAll('input[name="auditMode"]').forEach(el =>
+    el.addEventListener("change", renderAuditList));
