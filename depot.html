@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Depot Inventory</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260902b">
+    <link rel="stylesheet" href="css/styles.css?v=20260902c">
 </head>
 <body>
 
@@ -36,17 +36,17 @@
         <!-- Depot picker -->
         <div class="card">
             <div class="card-title">Select Depot</div>
-            <div class="form-row">
+            <div class="form-row depot-picker-row">
                 <div class="form-group">
                     <label for="depotSelect">Depot</label>
                     <select id="depotSelect">
                         <option value="">-- Select a depot --</option>
                     </select>
                 </div>
-                <div class="form-group" style="display:flex; align-items:flex-end; gap:8px;">
-                    <button class="btn btn-primary" id="addDeviceBtn" disabled>&#x2795; Add Device</button>
-                    <button class="btn btn-primary" id="shipPalletBtn" disabled title="Ship all Pending Transfer devices to CORD or another depot">&#x1F4E6; Ship Pallet</button>
-                    <button class="btn btn-secondary" id="auditBtn" disabled title="Count this depot against IMS and report the differences">&#x1F9FE; Audit Depot</button>
+                <div class="form-group" style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap;">
+                    <button class="btn btn-primary btn-sm" id="addDeviceBtn" style="white-space:nowrap;" disabled>&#x2795; Add Device</button>
+                    <button class="btn btn-primary btn-sm" id="shipPalletBtn" style="white-space:nowrap;" disabled title="Ship all Pending Transfer devices to CORD or another depot">&#x1F4E6; Ship Pallet</button>
+                    <button class="btn btn-secondary btn-sm" id="auditBtn" style="white-space:nowrap;" disabled title="Count this depot against IMS and report the differences">&#x1F9FE; Audit Depot</button>
                 </div>
             </div>
         </div>
@@ -317,9 +317,9 @@
 
                 <div class="form-group">
                     <label for="auditScanInput">Scan or type a serial, one at a time</label>
-                    <div style="display:flex; gap:8px;">
-                        <input type="text" id="auditScanInput" placeholder="Serial number" style="flex:1 1 auto; min-width:0;" autocomplete="off" />
-                        <button type="button" class="btn btn-secondary scan-btn" id="auditScanBtn" style="flex:none;">&#x1F4F7; Scan</button>
+                    <div class="input-with-icon">
+                        <input type="text" id="auditScanInput" placeholder="Scan or type serial" autocomplete="off" />
+                        <button type="button" class="scan-btn" id="auditScanBtn" title="Scan barcode">&#x1F4F7;</button>
                     </div>
                 </div>
 
@@ -376,6 +376,6 @@
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
     <script src="js/photo-helpers.js?v=20260524"></script>
-    <script src="js/depot.js?v=20260902b"></script>
+    <script src="js/depot.js?v=20260902c"></script>
 </body>
 </html>

@@ -208,6 +208,15 @@ body {
     gap: 16px;
 }
 
+/* Depot picker row: the depot select plus its three action buttons. The button
+   column sizes to its content so the labels stay on one line. This lives here
+   rather than inline because an inline grid-template-columns would beat the
+   ≤640px rule below, which collapses the row to a single column. */
+.depot-picker-row {
+    grid-template-columns: minmax(180px, 260px) auto;
+    align-items: end;
+}
+
 .input-with-icon {
     position: relative;
 }
