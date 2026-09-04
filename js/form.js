@@ -191,25 +191,98 @@ function clearDeviceFields() {
 const PULL_FROM_DEPOT_TYPES = new Set(["Install-New", "Move", "Hot Swap"]);
 const BAD_DEPOT_STATUSES = new Set(["In Transit", "In Maintenance", "Damaged In Transit", "Pending Transfer"]);
 
+// The CORD warehouse's cmn_location facility name. A Removal logged against
+// it sends the device to the warehouse, so IMS records it as In Transit and
+// the manager checks it in on arrival. Must match CORD_LOCATION in the
+// backend's submissions.py.
+const CORD_LOCATION = "Cord Moving and Storage";
+
 // Latest depot-status snapshot for the current serial; null when serial is
 // not at any depot or the lookup hasn't run yet.
 let depotStatusInfo = null;
 
+// Last completed serial lookup. Kept in module state so the notice can be
+// re-rendered when Service Type or Location changes -- those arrive AFTER
+// the serial on this form, and a stale notice beside a disabled Submit
+// button leaves the tech with no reason for the block.
+let lastLookup = { serial: '', cmdbHit: false, notFound: false };
+
+function renderSerialNotice() {
+    const notice = document.getElementById("serialNotice");
+    if (!lastLookup.serial) { notice.classList.add("hidden"); return; }
+    // Blocking warnings come first, because they stop the submission; the
+    // CMDB hit/miss note is only informational.
+    if (isRemovalToCord() && depotStatusInfo && depotStatusInfo.cord_conflict) {
+        // Same sentence the backend 409 would produce, shown before the
+        // tech fills in the rest of the form.
+        notice.textContent = `✗ ${lastLookup.serial} ${depotStatusInfo.cord_conflict}. `
+            + `It cannot be marked inbound to CORD.`;
+        notice.className = "field-notice error";
+        notice.classList.remove("hidden");
+    } else if (isRemovalToCord()) {
+        notice.textContent = "✓ This Removal will mark the device In Transit to CORD. "
+            + "The warehouse checks it in on arrival."
+            + (lastLookup.cmdbHit ? " Device found in CMDB — fields auto-populated." : "");
+        notice.className = "field-notice success";
+        notice.classList.remove("hidden");
+    } else if (depotStatusInfo && depotStatusInfo.at_depot
+               && BAD_DEPOT_STATUSES.has(depotStatusInfo.status)
+               && PULL_FROM_DEPOT_TYPES.has(document.getElementById("serviceType").value)) {
+        // Gated on the service type so the notice and the Submit gate always
+        // agree. Saying "cannot Install / Move / Hot Swap" while Submit is
+        // enabled for a Removal reads as a bug.
+        const advice = {
+            "In Transit":         "wait for depot check-in",
+            "In Maintenance":     "mark the device In Stock from the depot tab when repair is complete",
+            "Damaged In Transit": "resolve the damaged claim in IMS",
+            "Pending Transfer":   "edit the device back to In Stock from the depot tab (it's staged on an outbound pallet)",
+        }[depotStatusInfo.status] || "resolve the depot state";
+        notice.textContent = `✗ Device is at ${depotStatusInfo.depot_facility} with status "${depotStatusInfo.status}" — ` +
+            `cannot Install / Move / Hot Swap. Please ${advice} first.`;
+        notice.className = "field-notice error";
+        notice.classList.remove("hidden");
+    } else if (lastLookup.cmdbHit) {
+        notice.textContent = "✓ Device found in CMDB — fields auto-populated, update any if needed";
+        notice.className = "field-notice success";
+        notice.classList.remove("hidden");
+    } else if (lastLookup.notFound) {
+        notice.textContent = "Not found in CMDB — enter details manually";
+        notice.className = "field-notice warning";
+        notice.classList.remove("hidden");
+    } else {
+        notice.classList.add("hidden");
+    }
+}
+
+// True when this submission would add the device to IMS inventory as
+// "inbound to CORD" — a Removal logged against the CORD warehouse.
+function isRemovalToCord() {
+    return document.getElementById("serviceType").value === "Removal"
+        && document.getElementById("location").value.trim() === CORD_LOCATION;
+}
+
 function updateSubmitGate() {
-    // Disable Submit when the current serial is at a depot in a bad status
-    // AND the service type would trigger the depot-pull (Install/Move/Hot Swap).
-    // Backend 409 is the final guard; this is just UX.
+    // Disable Submit when the backend would reject the submission anyway.
+    // Backend 409 is the final guard; this is just UX — but a tech who has
+    // filled in the whole form should not learn about it at the last click.
     const svc = document.getElementById("serviceType").value;
     const btn = document.getElementById("submitBtn");
     if (!btn) return;
-    const blocked = depotStatusInfo
+    const depotBlocked = depotStatusInfo
         && depotStatusInfo.at_depot
         && BAD_DEPOT_STATUSES.has(depotStatusInfo.status)
         && PULL_FROM_DEPOT_TYPES.has(svc);
-    btn.disabled = !!blocked;
+    const cordBlocked = depotStatusInfo
+        && depotStatusInfo.cord_conflict
+        && isRemovalToCord();
+    btn.disabled = !!(depotBlocked || cordBlocked);
 }
 
-document.getElementById("serviceType").addEventListener("change", updateSubmitGate);
+function refreshSerialUi() { renderSerialNotice(); updateSubmitGate(); }
+document.getElementById("serviceType").addEventListener("change", refreshSerialUi);
+// The CORD gate depends on the location too, so re-check when it changes.
+document.getElementById("location").addEventListener("input", refreshSerialUi);
+document.getElementById("location").addEventListener("change", refreshSerialUi);
 
 let serialLookupTimeout = null;
 document.getElementById("serial").addEventListener("input", (e) => {
@@ -218,6 +291,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
     const notice = document.getElementById("serialNotice");
     // Reset depot state on every serial change; the debounced lookup repopulates.
     depotStatusInfo = null;
+    lastLookup = { serial: '', cmdbHit: false, notFound: false };
     updateSubmitGate();
     if (!serial) {
         notice.classList.add("hidden");
@@ -237,6 +311,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
 
         // 1) CMDB autofill (existing behavior)
         let cmdbHit = false;
+        let notFound = false;
         if (cmdbRes && cmdbRes.ok) {
             const data = await cmdbRes.json();
             document.getElementById("asset").value = data.asset || "";
@@ -249,7 +324,9 @@ document.getElementById("serial").addEventListener("input", (e) => {
         } else if (cmdbRes && cmdbRes.status === 404) {
             clearDeviceFields();
             enableComboboxes();
+            notFound = true;
         }
+        lastLookup = { serial, cmdbHit, notFound };
 
         // 2) Depot-status check — sets depotStatusInfo and drives the warning
         if (depotRes && depotRes.ok) {
@@ -258,31 +335,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
             depotStatusInfo = null;
         }
 
-        // 3) Decide which notice to show — depot warning takes priority over
-        //    the CMDB hit/miss notice because it's blocking on submit.
-        if (depotStatusInfo && depotStatusInfo.at_depot && BAD_DEPOT_STATUSES.has(depotStatusInfo.status)) {
-            const advice = {
-                "In Transit":         "wait for depot check-in",
-                "In Maintenance":     "mark the device In Stock from the depot tab when repair is complete",
-                "Damaged In Transit": "resolve the damaged claim in IMS",
-                "Pending Transfer":   "edit the device back to In Stock from the depot tab (it's staged on an outbound pallet)",
-            }[depotStatusInfo.status] || "resolve the depot state";
-            notice.textContent = `✗ Device is at ${depotStatusInfo.depot_facility} with status "${depotStatusInfo.status}" — ` +
-                `cannot Install / Move / Hot Swap. Please ${advice} first.`;
-            notice.className = "field-notice error";
-            notice.classList.remove("hidden");
-        } else if (cmdbHit) {
-            notice.textContent = "✓ Device found in CMDB — fields auto-populated, update any if needed";
-            notice.className = "field-notice success";
-            notice.classList.remove("hidden");
-        } else if (cmdbRes && cmdbRes.status === 404) {
-            notice.textContent = "Not found in CMDB — enter details manually";
-            notice.className = "field-notice warning";
-            notice.classList.remove("hidden");
-        } else {
-            notice.classList.add("hidden");
-        }
-
+        renderSerialNotice();
         updateSubmitGate();
     }, 500);
 });
