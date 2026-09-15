@@ -197,6 +197,24 @@ const BAD_DEPOT_STATUSES = new Set(["In Transit", "In Maintenance", "Damaged In 
 // backend's submissions.py.
 const CORD_LOCATION = "Cord Moving and Storage";
 
+// Facility names from depot_sites. A Removal at one of these adds the device
+// to that depot's inventory, with the status chosen in the Depot Status
+// dropdown. Matched exactly, as the backend does — not by the "EPDS - " prefix,
+// which would show the dropdown for a facility the backend doesn't treat as a
+// depot. Empty until loaded; if the load fails the dropdown simply never shows
+// and the backend lands the device In Maintenance, as before.
+let depotFacilities = new Set();
+const DEPOT_STATUS_DEFAULT = "In Maintenance";
+
+async function loadDepotFacilities() {
+    const res = await Auth.apiCall("GET", "/depot/sites");
+    if (res && res.ok) {
+        depotFacilities = new Set((await res.json()).map(s => s.facility));
+        refreshSerialUi();
+    }
+}
+loadDepotFacilities();
+
 // Latest depot-status snapshot for the current serial; null when serial is
 // not at any depot or the lookup hasn't run yet.
 let depotStatusInfo = null;
@@ -210,19 +228,34 @@ let lastLookup = { serial: '', cmdbHit: false, notFound: false };
 function renderSerialNotice() {
     const notice = document.getElementById("serialNotice");
     if (!lastLookup.serial) { notice.classList.add("hidden"); return; }
+    const cmdbNote = lastLookup.cmdbHit ? " Device found in CMDB — fields auto-populated." : "";
+    const conflict = depotStatusInfo && depotStatusInfo.removal_conflict;
     // Blocking warnings come first, because they stop the submission; the
     // CMDB hit/miss note is only informational.
-    if (isRemovalToCord() && depotStatusInfo && depotStatusInfo.cord_conflict) {
+    if (isRemovalToCord() && conflict) {
         // Same sentence the backend 409 would produce, shown before the
         // tech fills in the rest of the form.
-        notice.textContent = `✗ ${lastLookup.serial} ${depotStatusInfo.cord_conflict}. `
+        notice.textContent = `✗ ${lastLookup.serial} ${conflict}. `
             + `It cannot be marked inbound to CORD.`;
         notice.className = "field-notice error";
         notice.classList.remove("hidden");
     } else if (isRemovalToCord()) {
         notice.textContent = "✓ This Removal will mark the device In Transit to CORD. "
-            + "The warehouse checks it in on arrival."
-            + (lastLookup.cmdbHit ? " Device found in CMDB — fields auto-populated." : "");
+            + "The warehouse checks it in on arrival." + cmdbNote;
+        notice.className = "field-notice success";
+        notice.classList.remove("hidden");
+    } else if (isRemovalToDepot() && conflict) {
+        const facility = document.getElementById("location").value.trim();
+        notice.textContent = `✗ ${lastLookup.serial} ${conflict}. `
+            + `It cannot be added to ${facility} depot inventory.`;
+        notice.className = "field-notice error";
+        notice.classList.remove("hidden");
+    } else if (isRemovalToDepot()) {
+        const facility = document.getElementById("location").value.trim();
+        const status = document.getElementById("depotStatus").value;
+        notice.textContent = `✓ This Removal will add the device to ${facility} as ${status}.`
+            + (status === "Pending Transfer" ? " It goes on the depot's next Ship Pallet." : "")
+            + cmdbNote;
         notice.className = "field-notice success";
         notice.classList.remove("hidden");
     } else if (depotStatusInfo && depotStatusInfo.at_depot
@@ -261,6 +294,20 @@ function isRemovalToCord() {
         && document.getElementById("location").value.trim() === CORD_LOCATION;
 }
 
+// True when this submission would add the device to an EPDS depot's inventory
+// — a Removal logged against a depot_sites facility.
+function isRemovalToDepot() {
+    return document.getElementById("serviceType").value === "Removal"
+        && depotFacilities.has(document.getElementById("location").value.trim());
+}
+
+// The Depot Status dropdown exists only for a Removal at a depot. Its value is
+// kept while hidden, so a tech who retypes the location doesn't lose the
+// choice; it is only sent when visible, and Clear Form resets it.
+function updateDepotStatusField() {
+    document.getElementById("depotStatusGroup").classList.toggle("hidden", !isRemovalToDepot());
+}
+
 function updateSubmitGate() {
     // Disable Submit when the backend would reject the submission anyway.
     // Backend 409 is the final guard; this is just UX — but a tech who has
@@ -272,17 +319,20 @@ function updateSubmitGate() {
         && depotStatusInfo.at_depot
         && BAD_DEPOT_STATUSES.has(depotStatusInfo.status)
         && PULL_FROM_DEPOT_TYPES.has(svc);
-    const cordBlocked = depotStatusInfo
-        && depotStatusInfo.cord_conflict
-        && isRemovalToCord();
-    btn.disabled = !!(depotBlocked || cordBlocked);
+    const removalBlocked = depotStatusInfo
+        && depotStatusInfo.removal_conflict
+        && (isRemovalToCord() || isRemovalToDepot());
+    btn.disabled = !!(depotBlocked || removalBlocked);
 }
 
-function refreshSerialUi() { renderSerialNotice(); updateSubmitGate(); }
+function refreshSerialUi() { updateDepotStatusField(); renderSerialNotice(); updateSubmitGate(); }
 document.getElementById("serviceType").addEventListener("change", refreshSerialUi);
-// The CORD gate depends on the location too, so re-check when it changes.
+// The CORD and depot gates depend on the location too, so re-check when it
+// changes. Typing fires these; picking from the typeahead sets the value in
+// code, which fires neither, so fillFromLocation calls refreshSerialUi itself.
 document.getElementById("location").addEventListener("input", refreshSerialUi);
 document.getElementById("location").addEventListener("change", refreshSerialUi);
+document.getElementById("depotStatus").addEventListener("change", renderSerialNotice);
 
 let serialLookupTimeout = null;
 document.getElementById("serial").addEventListener("input", (e) => {
@@ -386,6 +436,7 @@ function fillFromLocation(loc) {
     document.getElementById("zip").value = loc.zip;
     document.getElementById("locationManual").value = "";
     lockLocationFields();
+    refreshSerialUi();
 }
 
 function lockLocationFields() {
@@ -418,6 +469,7 @@ document.getElementById("locationManual").addEventListener("input", (e) => {
     } else {
         lockLocationFields();
     }
+    refreshSerialUi();   // the facility may have just been cleared
 });
 
 // ── Service Type Logic ────────────────────────────────────────────────────
@@ -523,6 +575,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         mdm_number: document.getElementById("mdmNumber").value.trim() || null,
         queue_name: document.getElementById("queueName").value.trim() || null,
         notes: document.getElementById("notes").value.trim() || null,
+        depot_status: isRemovalToDepot() ? document.getElementById("depotStatus").value : null,
     };
 
     const res = await Auth.apiCall("POST", "/submissions/", payload);
@@ -565,9 +618,14 @@ function clearForm() {
     });
     document.getElementById("serviceType").value = "";
     document.getElementById("atr").value = "";
+    document.getElementById("depotStatus").value = DEPOT_STATUS_DEFAULT;
     document.getElementById("serialNotice").classList.add("hidden");
     selectedManufacturer = "";
     depotStatusInfo = null;
+    // Without this the next Service Type / Location change re-renders the
+    // notice for the serial that was just submitted.
+    lastLookup = { serial: '', cmdbHit: false, notFound: false };
+    updateDepotStatusField();
     updateSubmitGate();
     enableComboboxes();
     lockLocationFields();
