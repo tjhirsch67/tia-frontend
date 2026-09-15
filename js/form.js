@@ -230,14 +230,25 @@ function renderSerialNotice() {
     if (!lastLookup.serial) { notice.classList.add("hidden"); return; }
     const cmdbNote = lastLookup.cmdbHit ? " Device found in CMDB — fields auto-populated." : "";
     const conflict = depotStatusInfo && depotStatusInfo.removal_conflict;
+    // A Removal to CORD has its own rule: a device the warehouse already holds
+    // is not a conflict (the Removal is recorded, inventory left alone). One
+    // already In Transit to CORD hasn't arrived, so the backend still reports
+    // it as cord_conflict and it takes the blocking branch.
+    const cordConflict = depotStatusInfo && depotStatusInfo.cord_conflict;
+    const atCordStatus = depotStatusInfo && depotStatusInfo.at_cord_status;
     // Blocking warnings come first, because they stop the submission; the
     // CMDB hit/miss note is only informational.
-    if (isRemovalToCord() && conflict) {
+    if (isRemovalToCord() && cordConflict) {
         // Same sentence the backend 409 would produce, shown before the
         // tech fills in the rest of the form.
-        notice.textContent = `✗ ${lastLookup.serial} ${conflict}. `
+        notice.textContent = `✗ ${lastLookup.serial} ${cordConflict}. `
             + `It cannot be marked inbound to CORD.`;
         notice.className = "field-notice error";
+        notice.classList.remove("hidden");
+    } else if (isRemovalToCord() && atCordStatus) {
+        notice.textContent = `✓ The warehouse already has this device (IMS status: ${atCordStatus}). `
+            + "This Removal will be recorded; IMS inventory is left as it is." + cmdbNote;
+        notice.className = "field-notice success";
         notice.classList.remove("hidden");
     } else if (isRemovalToCord()) {
         notice.textContent = "✓ This Removal will mark the device In Transit to CORD. "
@@ -319,9 +330,9 @@ function updateSubmitGate() {
         && depotStatusInfo.at_depot
         && BAD_DEPOT_STATUSES.has(depotStatusInfo.status)
         && PULL_FROM_DEPOT_TYPES.has(svc);
-    const removalBlocked = depotStatusInfo
-        && depotStatusInfo.removal_conflict
-        && (isRemovalToCord() || isRemovalToDepot());
+    const removalBlocked = depotStatusInfo && (
+        (isRemovalToCord() && depotStatusInfo.cord_conflict)
+        || (isRemovalToDepot() && depotStatusInfo.removal_conflict));
     btn.disabled = !!(depotBlocked || removalBlocked);
 }
 
