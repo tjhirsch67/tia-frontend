@@ -1085,6 +1085,7 @@ function openAuditModal() {
     auditEl("auditPasteBox").value = "";
     auditEl("auditFile").value = "";
     auditEl("auditFileNote").textContent = "";
+    auditEl("auditPasteHint").textContent = "";
     auditEl("auditSendResult").innerHTML = "";
     auditEl("auditSendBox").style.display = "";
     document.querySelector('input[name="auditMode"][value="full"]').checked = true;
@@ -1116,6 +1117,28 @@ function addAuditSerials(values) {
     return { added, dupes };
 }
 
+// Serials sitting in the paste box that have not been added to the list yet.
+// Splitting is identical to the "add" button, so the two can never disagree
+// about what counts as a serial.
+function pendingPastedSerials() {
+    const box = auditEl("auditPasteBox");
+    if (!box) return [];
+    return box.value.split(/[\r\n,;\t]+/).map(v => String(v || "").trim().toUpperCase())
+        .filter(v => v.length > 0);
+}
+
+// The paste box is a staging area, so anything left in it is invisible to the
+// audit. Say so continuously rather than letting the count read 0 beside a
+// full box — a silently-empty audit reports every device as missing.
+function renderPasteHint() {
+    const hint = auditEl("auditPasteHint");
+    if (!hint) return;
+    const n = pendingPastedSerials().length;
+    if (!n) { hint.textContent = ""; return; }
+    hint.innerHTML = `<span style="color:#b9770e;">&#9888; ${n} serial${n === 1 ? "" : "s"} `
+        + `typed above but <b>not yet added</b> &mdash; press the button.</span>`;
+}
+
 function removeAuditSerial(serial) {
     auditSerials = auditSerials.filter(s => s !== serial);
     renderAuditList();
@@ -1123,7 +1146,9 @@ function removeAuditSerial(serial) {
 
 function renderAuditList() {
     auditEl("auditCount").textContent = auditSerials.length;
-    auditEl("auditRun").disabled = auditSerials.length === 0 && auditMode() === "spot";
+    auditEl("auditRun").disabled =
+        auditSerials.length === 0 && pendingPastedSerials().length === 0
+        && auditMode() === "spot";
     const list = auditEl("auditList");
     if (!auditSerials.length) {
         list.innerHTML = '<span style="color:#888;">Nothing scanned yet.</span>';
@@ -1139,6 +1164,27 @@ function renderAuditList() {
 
 async function runAudit() {
     if (auditRunning) return;
+
+    // Anything still in the paste box is what the tech believes they entered,
+    // so take it rather than auditing an empty list behind their back.
+    const pending = pendingPastedSerials();
+    if (pending.length) {
+        addAuditSerials(pending);
+        auditEl("auditPasteBox").value = "";
+        renderPasteHint();
+    }
+
+    // A full audit with nothing scanned is not an audit — it reports every
+    // device at the depot as missing. Refuse it instead of emailing that out.
+    if (!auditSerials.length && auditMode() === "full") {
+        auditEl("auditError").textContent =
+            "No serials entered. A full audit with nothing scanned would report "
+            + "every device at this depot as missing. Scan, paste or upload the "
+            + "serials you counted, or switch to Spot check.";
+        auditEl("auditError").classList.remove("hidden");
+        return;
+    }
+
     auditRunning = true;
     const btn = auditEl("auditRun");
     btn.disabled = true;
@@ -1298,11 +1344,17 @@ auditEl("auditClearList").addEventListener("click", () => {
     renderAuditList();
 });
 auditEl("auditAddPasted").addEventListener("click", () => {
-    const box = auditEl("auditPasteBox");
-    const { added, dupes } = addAuditSerials(box.value.split(/[\r\n,;\t]+/));
-    box.value = "";
-    auditEl("auditFileNote").textContent =
-        `Added ${added} serial${added === 1 ? "" : "s"}${dupes ? `, ${dupes} already in the list` : ""}.`;
+    const { added, dupes } = addAuditSerials(pendingPastedSerials());
+    auditEl("auditPasteBox").value = "";
+    auditEl("auditPasteHint").innerHTML = (added || dupes)
+        ? `<span style="color:#1a7f3c;">Added ${added} serial${added === 1 ? "" : "s"}`
+          + `${dupes ? `, ${dupes} already in the list` : ""}.</span>`
+        : "Nothing to add.";
+});
+// Keep the "not yet added" warning honest while the tech types or pastes.
+auditEl("auditPasteBox").addEventListener("input", () => {
+    renderPasteHint();
+    renderAuditList();
 });
 auditEl("auditFile").addEventListener("change", (e) => {
     if (e.target.files && e.target.files[0]) parseAuditFile(e.target.files[0]);

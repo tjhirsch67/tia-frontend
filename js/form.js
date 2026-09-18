@@ -223,12 +223,17 @@ let depotStatusInfo = null;
 // re-rendered when Service Type or Location changes -- those arrive AFTER
 // the serial on this form, and a stale notice beside a disabled Submit
 // button leaves the tech with no reason for the block.
-let lastLookup = { serial: '', cmdbHit: false, notFound: false };
+let lastLookup = { serial: '', cmdbHit: false, notFound: false, sStripped: false };
 
 function renderSerialNotice() {
     const notice = document.getElementById("serialNotice");
     if (!lastLookup.serial) { notice.classList.add("hidden"); return; }
     const cmdbNote = lastLookup.cmdbHit ? " Device found in CMDB — fields auto-populated." : "";
+    // A Lexmark scanned with its leading S is stored without it, so the server
+    // resolved the serial and the field was corrected. Say so — silently
+    // rewriting what the tech scanned reads as the form losing the scan.
+    const sNote = lastLookup.sStripped
+        ? " (leading S removed — Lexmark)" : "";
     const conflict = depotStatusInfo && depotStatusInfo.removal_conflict;
     // A Removal to CORD has its own rule: a device the warehouse already holds
     // is not a conflict (the Removal is recorded, inventory left alone). One
@@ -296,6 +301,10 @@ function renderSerialNotice() {
     } else {
         notice.classList.add("hidden");
     }
+    // Whichever branch rendered, the strip is worth stating once.
+    if (sNote && !notice.classList.contains("hidden")) {
+        notice.textContent += sNote;
+    }
 }
 
 // True when this submission would add the device to IMS inventory as
@@ -352,7 +361,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
     const notice = document.getElementById("serialNotice");
     // Reset depot state on every serial change; the debounced lookup repopulates.
     depotStatusInfo = null;
-    lastLookup = { serial: '', cmdbHit: false, notFound: false };
+    lastLookup = { serial: '', cmdbHit: false, notFound: false, sStripped: false };
     updateSubmitGate();
     if (!serial) {
         notice.classList.add("hidden");
@@ -373,6 +382,14 @@ document.getElementById("serial").addEventListener("input", (e) => {
         // 1) CMDB autofill (existing behavior)
         let cmdbHit = false;
         let notFound = false;
+        let sStripped = false;
+        // The serial actually used from here on. A bare scan carries no
+        // manufacturer, so the Lexmark leading-S rule cannot be applied here;
+        // the server resolves it against stored data and tells us what it
+        // used. Correcting the field matters as much as the lookup: the
+        // submit-time strip reads the manufacturer, which a missed lookup
+        // leaves blank, so without this the S rides into the install record.
+        let resolved = serial;
         if (cmdbRes && cmdbRes.ok) {
             const data = await cmdbRes.json();
             document.getElementById("asset").value = data.asset || "";
@@ -382,19 +399,31 @@ document.getElementById("serial").addEventListener("input", (e) => {
             selectedManufacturer = data.manufacturer || "";
             enableComboboxes();
             cmdbHit = true;
+            if (data.lexmark_s_stripped && data.serial) {
+                resolved = data.serial;
+                sStripped = true;
+            }
         } else if (cmdbRes && cmdbRes.status === 404) {
             clearDeviceFields();
             enableComboboxes();
             notFound = true;
         }
-        lastLookup = { serial, cmdbHit, notFound };
 
         // 2) Depot-status check — sets depotStatusInfo and drives the warning
         if (depotRes && depotRes.ok) {
             depotStatusInfo = await depotRes.json();
+            // The depot endpoint resolves the serial too, and knows about
+            // devices CMDB has never heard of, so trust it when CMDB missed.
+            if (depotStatusInfo.lexmark_s_stripped && depotStatusInfo.serial) {
+                resolved = depotStatusInfo.serial;
+                sStripped = true;
+            }
         } else {
             depotStatusInfo = null;
         }
+
+        if (sStripped) document.getElementById("serial").value = resolved;
+        lastLookup = { serial: resolved, cmdbHit, notFound, sStripped };
 
         renderSerialNotice();
         updateSubmitGate();
@@ -556,9 +585,15 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     btn.textContent = "Submitting...";
 
     // ── Lexmark S-strip ───────────────────────────────────────────────────
-    let serial = document.getElementById("serial").value.trim();
+    // Belt and braces only: the lookup already resolved the serial against
+    // stored data and corrected the field, and the backend resolves it again
+    // on write. This catches the case where the tech typed the manufacturer
+    // themselves for a device neither app has seen. "LM" is the spelling
+    // TIA-sourced CMDB rows carry, which the old check missed.
+    let serial = document.getElementById("serial").value.trim().toUpperCase();
     const manufacturer = document.getElementById("manufacturer").value.trim();
-    if (manufacturer.toLowerCase() === "lexmark" && serial.toUpperCase().startsWith("S")) {
+    const isLexmark = ["LEXMARK", "LM"].includes(manufacturer.toUpperCase());
+    if (isLexmark && serial.startsWith("S") && serial.length > 1) {
         serial = serial.slice(1);
     }
     const mercyId = document.getElementById("mercyId").value.replace(/\s/g, "").trim();
@@ -635,7 +670,7 @@ function clearForm() {
     depotStatusInfo = null;
     // Without this the next Service Type / Location change re-renders the
     // notice for the serial that was just submitted.
-    lastLookup = { serial: '', cmdbHit: false, notFound: false };
+    lastLookup = { serial: '', cmdbHit: false, notFound: false, sStripped: false };
     updateDepotStatusField();
     updateSubmitGate();
     enableComboboxes();
