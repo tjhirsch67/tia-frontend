@@ -189,6 +189,39 @@
         </div>
     </div>
 
+    <!-- Ship one device modal -->
+    <div id="shipOneModal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:520px;">
+            <h3 style="color:#1F4E79; margin-bottom:4px;">Ship Device</h3>
+            <p style="color:#666; font-size:0.85rem; margin-bottom:14px;">Shipping from: <b id="shipOneOrigin"></b></p>
+
+            <div class="form-group">
+                <label>Device</label>
+                <div id="shipOneDevice" style="border:1px solid #d1d5db; border-radius:6px; padding:10px; background:#f8fafc;"></div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="shipOneDestination">Destination <span class="required">*</span></label>
+                    <select id="shipOneDestination"></select>
+                </div>
+                <div class="form-group">
+                    <label for="shipOneMdm">MDM Tracking # <span class="required">*</span></label>
+                    <input type="text" id="shipOneMdm" placeholder="MDM tracking number" maxlength="20">
+                </div>
+            </div>
+
+            <p style="color:#666; font-size:0.85rem;">The device becomes <b>In Transit</b> and is checked in at the
+            destination on arrival. The Depot Transfer recipients are notified.</p>
+
+            <div id="shipOneError" class="error-message hidden"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="shipOneCancel">Cancel</button>
+                <button class="btn btn-primary" id="shipOneConfirm">Ship Device</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Device modal -->
     <div id="addDeviceModal" class="modal-overlay hidden">
         <div class="modal" style="max-width:600px;">
@@ -377,6 +410,6 @@
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
     <script src="js/photo-helpers.js?v=20260524"></script>
-    <script src="js/depot.js?v=20260918"></script>
+    <script src="js/depot.js?v=20260918b"></script>
 </body>
 </html>

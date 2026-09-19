@@ -204,7 +204,10 @@ function renderInventoryTable() {
                 <button class="btn btn-secondary btn-sm" data-action="damaged" data-serial="${escapeHtml(r.serial)}" style="background:#fdecea; color:#c0392b; border:1px solid #c0392b;">Damaged</button>
             `;
         } else if (status === "In Stock" || status === "In Maintenance" || status === "Pending Transfer") {
-            actions = `<button class="btn btn-secondary btn-sm" data-action="edit" data-serial="${escapeHtml(r.serial)}">Edit</button>`;
+            actions = `
+                <button class="btn btn-secondary btn-sm" data-action="edit" data-serial="${escapeHtml(r.serial)}">Edit</button>
+                <button class="btn btn-secondary btn-sm" data-action="ship-one" data-serial="${escapeHtml(r.serial)}">Ship to&hellip;</button>
+            `;
         } else if (status === "Damaged In Transit") {
             actions = `<span style="color:#666; font-size:0.85rem;">Close claim in IMS</span>`;
         }
@@ -231,6 +234,7 @@ function renderInventoryTable() {
             if (action === "check-in")    openCheckInModal(row);
             else if (action === "damaged") openDamagedModal(row);
             else if (action === "edit")    openEditModal(row);
+            else if (action === "ship-one") openShipOneModal(row);
         });
     });
 
@@ -413,20 +417,7 @@ function openPalletModal() {
     document.getElementById("palletOrigin").textContent = currentFacility;
 
     // Destination: CORD first, then every other depot except the origin
-    const destSel = document.getElementById("palletDestination");
-    destSel.innerHTML = "";
-    const cordOpt = document.createElement("option");
-    cordOpt.value = CORD_DESTINATION;
-    cordOpt.textContent = "CORD Warehouse";
-    destSel.appendChild(cordOpt);
-    depotSites
-        .filter(site => site.facility !== currentFacility)
-        .forEach(site => {
-            const opt = document.createElement("option");
-            opt.value = site.facility;
-            opt.textContent = site.facility;
-            destSel.appendChild(opt);
-        });
+    fillDestinationOptions(document.getElementById("palletDestination"));
 
     document.getElementById("palletMdm").value = "";
     document.getElementById("palletCount").textContent = "";
@@ -460,6 +451,92 @@ function updatePalletCount() {
         `(${n} of ${document.querySelectorAll("#palletDeviceList .pallet-device").length} selected)`;
     document.getElementById("palletConfirm").disabled = n === 0;
 }
+
+// ── Ship one device ───────────────────────────────────────────────────────
+// Same endpoint as the pallet, with allow_unstaged so a device can go straight
+// from In Stock without the Edit -> Pending Transfer -> Ship Pallet -> uncheck
+// everyone else round trip. Unchecking was the risky step: the pallet modal
+// opens with every staged device ticked, so a slip ships someone else's device.
+let shipOneTarget = null;
+
+// CORD first, then every depot except the origin. Shared with the pallet modal
+// so the two can never offer different destinations.
+function fillDestinationOptions(sel) {
+    sel.innerHTML = "";
+    const cordOpt = document.createElement("option");
+    cordOpt.value = CORD_DESTINATION;
+    cordOpt.textContent = "CORD Warehouse";
+    sel.appendChild(cordOpt);
+    depotSites
+        .filter(site => site.facility !== currentFacility)
+        .forEach(site => {
+            const opt = document.createElement("option");
+            opt.value = site.facility;
+            opt.textContent = site.facility;
+            sel.appendChild(opt);
+        });
+}
+
+function openShipOneModal(row) {
+    if (!currentFacility || !row) return;
+    shipOneTarget = row;
+    document.getElementById("shipOneOrigin").textContent = currentFacility;
+    document.getElementById("shipOneDevice").innerHTML =
+        `<strong>${escapeHtml(row.serial)}</strong> &mdash; ${escapeHtml(row.manufacturer)} ${escapeHtml(row.model)}`
+        + `<br><span style="color:#666; font-size:0.85rem;">`
+        + `Asset ${escapeHtml(row.asset_tag) || "&mdash;"} &middot; status ${escapeHtml(row.status)}</span>`;
+    fillDestinationOptions(document.getElementById("shipOneDestination"));
+    document.getElementById("shipOneMdm").value = "";
+    document.getElementById("shipOneError").classList.add("hidden");
+    document.getElementById("shipOneModal").classList.remove("hidden");
+}
+
+function closeShipOneModal() {
+    document.getElementById("shipOneModal").classList.add("hidden");
+    shipOneTarget = null;
+}
+
+async function confirmShipOne() {
+    if (!shipOneTarget) return;
+    const err = document.getElementById("shipOneError");
+    const mdm = document.getElementById("shipOneMdm").value.trim();
+    if (!mdm) {
+        err.textContent = "MDM tracking number is required.";
+        err.classList.remove("hidden");
+        return;
+    }
+    const destination = document.getElementById("shipOneDestination").value;
+    const destLabel = destination === CORD_DESTINATION ? "CORD Warehouse" : destination;
+    const btn = document.getElementById("shipOneConfirm");
+    btn.disabled = true;
+    btn.textContent = "Shipping...";
+    err.classList.add("hidden");
+    try {
+        const res = await Auth.apiCall("POST", "/depot/transfer", {
+            facility: currentFacility,
+            destination: destination,
+            mdm_tracking: mdm,
+            serials: [shipOneTarget.serial],
+            allow_unstaged: true,
+        });
+        if (!res || !res.ok) {
+            const body = await (res ? res.json().catch(() => ({})) : {});
+            err.textContent = body.detail || "Could not ship the device.";
+            err.classList.remove("hidden");
+            return;
+        }
+        const serial = shipOneTarget.serial;
+        closeShipOneModal();
+        showSuccess(`${serial} shipped to ${destLabel} (MDM ${mdm}). It is now In Transit.`);
+        await loadDepotInventory(currentFacility);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Ship Device";
+    }
+}
+
+document.getElementById("shipOneCancel").addEventListener("click", closeShipOneModal);
+document.getElementById("shipOneConfirm").addEventListener("click", confirmShipOne);
 
 document.getElementById("shipPalletBtn").addEventListener("click", openPalletModal);
 document.getElementById("palletCancel").addEventListener("click", () => {
