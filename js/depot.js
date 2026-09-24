@@ -698,15 +698,28 @@ document.getElementById("addSerial").addEventListener("input", () => {
         return;
     }
     serialLookupTimer = setTimeout(async () => {
-        // Fire both checks in parallel
-        const [cmdbRes, checkRes] = await Promise.all([
-            Auth.apiCall("GET", `/cmdb/lookup/${encodeURIComponent(serial)}`),
-            Auth.apiCall("GET", `/depot/inventory-check/${encodeURIComponent(serial)}`),
-        ]);
+        const serialEl = document.getElementById("addSerial");
+        // The conflict check runs first because it also resolves the serial:
+        // a leading S comes off whatever the make (Sep 23 2026 — Add Device
+        // only), and the CMDB autofill must look up the serial that will
+        // actually be saved, not the one scanned.
+        const checkRes = await Auth.apiCall("GET", `/depot/inventory-check/${encodeURIComponent(serial)}`);
+        if (serialEl.value.trim() !== serial) return;   // user kept typing
+        const check = (checkRes && checkRes.ok) ? await checkRes.json() : null;
+
+        let resolved = serial;
+        let stripNote = "";
+        if (check && check.s_stripped && check.serial) {
+            resolved = check.serial;
+            serialEl.value = resolved;
+            stripNote = " (leading S removed)";
+        }
+
+        const cmdbRes = await Auth.apiCall("GET", `/cmdb/lookup/${encodeURIComponent(resolved)}`);
 
         // 1) CMDB autofill — only fill fields if the input hasn't changed since
         //    we fired the request (user kept typing).
-        if (document.getElementById("addSerial").value.trim() !== serial) return;
+        if (serialEl.value.trim() !== resolved) return;
 
         if (cmdbRes && cmdbRes.ok) {
             const data = await cmdbRes.json();
@@ -721,10 +734,9 @@ document.getElementById("addSerial").addEventListener("input", () => {
         }
 
         // 2) Cross-table conflict check — blocks Save and shows the red badge
-        if (checkRes && checkRes.ok) {
-            const check = await checkRes.json();
+        if (check) {
             if (check.conflict) {
-                notice.textContent = "✗ " + check.detail + " Cannot add as a duplicate.";
+                notice.textContent = "✗ " + check.detail + " Cannot add as a duplicate." + stripNote;
                 notice.className = "field-notice error";
                 notice.classList.remove("hidden");
                 saveBlockedByConflict = true;
@@ -735,11 +747,15 @@ document.getElementById("addSerial").addEventListener("input", () => {
 
         // 3) If no conflict, show the CMDB hit/miss notice
         if (cmdbRes && cmdbRes.ok) {
-            notice.textContent = "✓ Found in CMDB — fields auto-populated, update any if needed.";
+            notice.textContent = "✓ Found in CMDB — fields auto-populated, update any if needed." + stripNote;
             notice.className = "field-notice success";
             notice.classList.remove("hidden");
         } else if (cmdbRes && cmdbRes.status === 404) {
-            notice.textContent = "Not found in CMDB — enter details manually.";
+            notice.textContent = "Not found in CMDB — enter details manually." + stripNote;
+            notice.className = "field-notice warning";
+            notice.classList.remove("hidden");
+        } else if (stripNote) {
+            notice.textContent = "Leading S removed from the serial.";
             notice.className = "field-notice warning";
             notice.classList.remove("hidden");
         } else {
