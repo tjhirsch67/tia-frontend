@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Depot Inventory</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260902c">
+    <link rel="stylesheet" href="css/styles.css?v=20260928">
 </head>
 <body>
 
@@ -19,6 +19,7 @@
             <li id="navReport" class="hidden"><a href="report.html">Reports</a></li>
             <li id="navDepot"><a href="depot.html" class="active">Depot Inventory</a></li>
             <li id="navAdmin" class="hidden"><a href="admin.html">Admin</a></li>
+            <li><a href="help.html">Help</a></li>
         </ul>
         <div class="navbar-user">
             <span id="navUsername"></span>
@@ -58,22 +59,30 @@
                 <span id="inventoryCount" style="color:#666; font-weight:400; font-size:0.9rem;"></span>
                 <button class="btn btn-secondary btn-sm" id="refreshBtn" disabled style="margin-left:auto;">&#x21BB; Refresh</button>
             </div>
+            <div class="depot-search">
+                <div class="input-with-icon">
+                    <input type="search" id="depotSearch" placeholder="Search serial, asset or MercyID" autocomplete="off" aria-label="Search this depot by serial, asset or MercyID">
+                    <button type="button" class="scan-btn" id="searchScanBtn" title="Scan barcode">&#x1F4F7;</button>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="depotSearchClear" style="display:none;">Clear</button>
+            </div>
             <div style="overflow-x:auto;">
                 <table class="data-table" id="inventoryTable">
                     <thead>
                         <tr>
-                            <th>Serial</th>
-                            <th>Asset</th>
-                            <th>MercyID</th>
-                            <th>Manufacturer</th>
-                            <th>Model</th>
-                            <th>Status</th>
-                            <th>Received</th>
+                            <th class="sortable" data-sort="serial" tabindex="0">Serial<span class="sort-ind"></span></th>
+                            <th class="sortable" data-sort="asset_tag" tabindex="0">Asset<span class="sort-ind"></span></th>
+                            <th class="sortable" data-sort="mercy_id" tabindex="0">MercyID<span class="sort-ind"></span></th>
+                            <th class="sortable" data-sort="manufacturer" tabindex="0">Manufacturer<span class="sort-ind"></span></th>
+                            <th class="sortable" data-sort="model" tabindex="0">Model<span class="sort-ind"></span></th>
+                            <th class="sortable" data-sort="status" tabindex="0">Status<span class="sort-ind"></span></th>
+                            <th class="sortable" data-sort="lease" tabindex="0">Lease<span class="sort-ind"></span></th>
+                            <th class="sortable" data-sort="receive_date" tabindex="0">Received<span class="sort-ind"></span></th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="inventoryBody">
-                        <tr><td colspan="8" style="text-align:center; padding:20px; color:#666;">Loading…</td></tr>
+                        <tr><td colspan="9" style="text-align:center; padding:20px; color:#666;">Loading…</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -410,6 +419,6 @@
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
     <script src="js/photo-helpers.js?v=20260524"></script>
-    <script src="js/depot.js?v=20260923"></script>
+    <script src="js/depot.js?v=20260928"></script>
 </body>
 </html>

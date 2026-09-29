@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIA - Help</title>
+    <link rel="stylesheet" href="css/styles.css?v=20260928">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="form.html">TIA</a>
+        <div class="hamburger" id="hamburger">
+            <span></span><span></span><span></span>
+        </div>
+        <ul class="navbar-nav" id="mainNav">
+            <li><a href="form.html">Tech Install</a></li>
+            <li id="navReport" class="hidden"><a href="report.html">Reports</a></li>
+            <li id="navDepot" class="hidden"><a href="depot.html">Depot Inventory</a></li>
+            <li id="navAdmin" class="hidden"><a href="admin.html">Admin</a></li>
+            <li><a href="help.html" class="active">Help</a></li>
+        </ul>
+        <div class="navbar-user">
+            <span id="navUsername"></span>
+            <button class="btn btn-secondary btn-sm" onclick="Auth.logout()">Sign Out</button>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <div class="page-title">Help</div>
+
+        <div class="card">
+            <div class="card-title">User Guides</div>
+            <!-- When a guide is updated: replace the PDF in /guides (same file
+                 name, so bookmarks keep working), then update the edition date
+                 and the download name below. -->
+            <div class="guide-list">
+                <div class="guide-card">
+                    <h3>Quick Reference</h3>
+                    <p>Two pages: the Tech Install form and the Depot Inventory tab at a glance. Good to keep on your phone.</p>
+                    <div class="guide-meta">PDF &middot; 2 pages &middot; 4.1 MB &middot; September 28, 2026 edition</div>
+                    <div class="guide-actions">
+                        <a class="btn btn-primary btn-sm" href="guides/TIA_Quick_Reference.pdf" target="_blank" rel="noopener">View</a>
+                        <a class="btn btn-secondary btn-sm" href="guides/TIA_Quick_Reference.pdf" download="TIA_Quick_Reference_9-28-26.pdf">Download</a>
+                    </div>
+                </div>
+                <div class="guide-card">
+                    <h3>Technician Guide</h3>
+                    <p>The full guide: signing in, scanning, every service type, removals to CORD and depots, the Depot Inventory tab, audits, reports and troubleshooting.</p>
+                    <div class="guide-meta">PDF &middot; 19 pages &middot; 4.3 MB &middot; September 28, 2026 edition</div>
+                    <div class="guide-actions">
+                        <a class="btn btn-primary btn-sm" href="guides/TIA_Technician_Guide.pdf" target="_blank" rel="noopener">View</a>
+                        <a class="btn btn-secondary btn-sm" href="guides/TIA_Technician_Guide.pdf" download="TIA_Technician_Guide_9-28-26.pdf">Download</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Still stuck?</div>
+            <p style="color:#555; font-size:0.92rem; line-height:1.6;">
+                <b>Something missing on your phone after an update?</b> Close the TIA tab completely and open tia-mercy.com again.<br>
+                <b>Inventory looks wrong?</b> Contact the CORD warehouse team.<br>
+                <b>Sign-in or access problems?</b> Contact your TIA administrator.
+            </p>
+        </div>
+    </div>
+
+    <script src="js/config.js?v=20260523"></script>
+    <script src="js/auth.js?v=20260523"></script>
+    <script src="js/help.js?v=20260928"></script>
+</body>
+</html>

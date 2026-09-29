@@ -167,7 +167,7 @@ async function loadDepotInventory(facility) {
     document.getElementById("inventoryTitle").textContent = facility;
     document.getElementById("inventoryCount").textContent = "";
     document.getElementById("inventoryBody").innerHTML =
-        '<tr><td colspan="8" style="text-align:center; padding:20px; color:#666;">Loading…</td></tr>';
+        '<tr><td colspan="9" style="text-align:center; padding:20px; color:#666;">Loading…</td></tr>';
     document.getElementById("refreshBtn").disabled = false;
 
     const res = await Auth.apiCall(
@@ -177,25 +177,142 @@ async function loadDepotInventory(facility) {
     if (!res || !res.ok) {
         showError("Failed to load inventory for this depot.");
         document.getElementById("inventoryBody").innerHTML =
-            '<tr><td colspan="8" style="text-align:center; padding:20px; color:#c0392b;">Failed to load.</td></tr>';
+            '<tr><td colspan="9" style="text-align:center; padding:20px; color:#c0392b;">Failed to load.</td></tr>';
         return;
     }
     inventoryRows = await res.json();
     renderInventoryTable();
 }
 
+// ── Search + sort ─────────────────────────────────────────────────────────
+// Both only change what is drawn. Ship Pallet, the pallet checklist and the
+// audit always work from the full inventoryRows, so a search can never hide a
+// staged device from a pallet.
+
+// Default = the backend's order (Received, newest first), shown as a real sort
+// so the Received header says so.
+let sortKey = "receive_date";
+let sortDir = "desc";
+
+const COLSPAN = 9;
+
+function searchQuery() {
+    // Same normalization as every serial/asset/MercyID input: uppercase, no spaces.
+    return (document.getElementById("depotSearch").value || "").toUpperCase().replace(/\s+/g, "");
+}
+
+function matchesSearch(r, q) {
+    if (!q) return true;
+    const fields = [r.serial, r.asset_tag, r.mercy_id].map(v => String(v || "").toUpperCase());
+    if (fields.some(f => f.includes(q))) return true;
+    // A scan carries a Lexmark's leading S, which IMS stores without. Only for
+    // a serial-length query, so typing "S" alone doesn't match everything.
+    return q.length >= 5 && q.startsWith("S") && fields[0].includes(q.slice(1));
+}
+
+// Sort value per column. null = blank, which always sorts last (as in Excel).
+function sortValue(r, key) {
+    if (key === "receive_date") {
+        const t = r.receive_date ? new Date(r.receive_date).getTime() : NaN;
+        return isNaN(t) ? null : t;
+    }
+    if (key === "lease") {
+        // Leased devices group together, soonest expiry first on A→Z; a leased
+        // device with no expiry yet sorts after the dated ones.
+        // Letter prefixes, not digits: the collator is numeric, so "1"+date
+        // would compare as a big number against "2".
+        if (!r.is_lease) return null;
+        return r.lease_expiration_date ? "a" + r.lease_expiration_date : "b";
+    }
+    const v = r[key];
+    return (v === null || v === undefined || String(v).trim() === "") ? null : String(v);
+}
+
+const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+function compareRows(a, b) {
+    const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    const c = (typeof va === "number") ? va - vb : collator.compare(va, vb);
+    return sortDir === "asc" ? c : -c;
+}
+
+function visibleRows() {
+    const q = searchQuery();
+    // Array.prototype.sort is stable, so ties keep the backend's newest-first order.
+    return inventoryRows.filter(r => matchesSearch(r, q)).sort(compareRows);
+}
+
+function sortTitle(key, dir) {
+    if (key === "receive_date") return dir === "asc" ? "Sort oldest to newest" : "Sort newest to oldest";
+    if (key === "lease") return dir === "asc" ? "Leased first, soonest expiry first" : "Leased first, latest expiry first";
+    return dir === "asc" ? "Sort A to Z" : "Sort Z to A";
+}
+
+function renderSortHeaders() {
+    document.querySelectorAll("#inventoryTable th.sortable").forEach(th => {
+        const key = th.getAttribute("data-sort");
+        const active = key === sortKey;
+        th.setAttribute("aria-sort", active ? (sortDir === "asc" ? "ascending" : "descending") : "none");
+        // The tooltip names what the NEXT click does.
+        th.title = sortTitle(key, active && sortDir === "asc" ? "desc" : "asc");
+    });
+}
+
+function setSort(key) {
+    if (key === sortKey) {
+        sortDir = sortDir === "asc" ? "desc" : "asc";
+    } else {
+        sortKey = key;
+        sortDir = "asc";
+    }
+    renderInventoryTable();
+}
+
+function leaseCell(r) {
+    if (!r.is_lease) return "&mdash;";
+    const parts = [r.lease_vendor, r.lease_number ? `Lease ${r.lease_number}` : "",
+                   r.lease_expiration_date ? `expires ${fmtDateOnly(r.lease_expiration_date)}` : ""]
+        .filter(Boolean).join(" · ");
+    return `<span class="lease-badge" title="${escapeHtml(parts || "Leased device")}">LEASED</span>`;
+}
+
+// A date-only string parses as UTC midnight, which renders a day early in US
+// time zones — split it instead.
+function fmtDateOnly(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || "");
+    return m ? `${+m[2]}/${+m[3]}/${m[1]}` : "—";
+}
+
 function renderInventoryTable() {
     const tbody = document.getElementById("inventoryBody");
+    const total = inventoryRows.length;
+    const rows = visibleRows();
+    const leased = inventoryRows.filter(r => r.is_lease).length;
+    const noun = total === 1 ? "device" : "devices";
+    const q = searchQuery();
     document.getElementById("inventoryCount").textContent =
-        `(${inventoryRows.length} ${inventoryRows.length === 1 ? "device" : "devices"})`;
+        (q ? `(${rows.length} of ${total} ${noun}` : `(${total} ${noun}`)
+        + (leased ? ` · ${leased} leased)` : ")");
+    document.getElementById("depotSearchClear").style.display =
+        document.getElementById("depotSearch").value ? "" : "none";
+    renderSortHeaders();
+    updateShipPalletBtn();
 
-    if (!inventoryRows.length) {
+    if (!total) {
         tbody.innerHTML =
-            '<tr><td colspan="8" style="text-align:center; padding:20px; color:#666;">No devices at this depot.</td></tr>';
+            `<tr><td colspan="${COLSPAN}" style="text-align:center; padding:20px; color:#666;">No devices at this depot.</td></tr>`;
+        return;
+    }
+    if (!rows.length) {
+        tbody.innerHTML =
+            `<tr><td colspan="${COLSPAN}" style="text-align:center; padding:20px; color:#666;">No devices at this depot match &ldquo;${escapeHtml(document.getElementById("depotSearch").value.trim())}&rdquo;.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = inventoryRows.map(r => {
+    tbody.innerHTML = rows.map(r => {
         const status = r.status;
         let actions = "";
         if (status === "In Transit") {
@@ -219,27 +336,43 @@ function renderInventoryTable() {
             <td>${escapeHtml(r.manufacturer)}</td>
             <td>${escapeHtml(r.model)}</td>
             <td>${statusBadge(status)}</td>
+            <td>${leaseCell(r)}</td>
             <td>${formatDate(r.receive_date)}</td>
             <td style="white-space:nowrap;">${actions}</td>
         </tr>`;
     }).join("");
-
-    // Wire row action buttons
-    tbody.querySelectorAll("button[data-action]").forEach(btn => {
-        const action = btn.getAttribute("data-action");
-        const serial = btn.getAttribute("data-serial");
-        btn.addEventListener("click", () => {
-            const row = inventoryRows.find(x => x.serial === serial);
-            if (!row) return;
-            if (action === "check-in")    openCheckInModal(row);
-            else if (action === "damaged") openDamagedModal(row);
-            else if (action === "edit")    openEditModal(row);
-            else if (action === "ship-one") openShipOneModal(row);
-        });
-    });
-
-    updateShipPalletBtn();
 }
+
+// Row action buttons — one delegated listener, since the table is redrawn on
+// every keystroke in the search box.
+document.getElementById("inventoryBody").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const serial = btn.getAttribute("data-serial");
+    const row = inventoryRows.find(x => x.serial === serial);
+    if (!row) return;
+    const action = btn.getAttribute("data-action");
+    if (action === "check-in")      openCheckInModal(row);
+    else if (action === "damaged")  openDamagedModal(row);
+    else if (action === "edit")     openEditModal(row);
+    else if (action === "ship-one") openShipOneModal(row);
+});
+
+document.querySelectorAll("#inventoryTable th.sortable").forEach(th => {
+    th.addEventListener("click", () => setSort(th.getAttribute("data-sort")));
+    th.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSort(th.getAttribute("data-sort")); }
+    });
+});
+
+document.getElementById("depotSearch").addEventListener("input", renderInventoryTable);
+document.getElementById("depotSearchClear").addEventListener("click", () => {
+    const box = document.getElementById("depotSearch");
+    box.value = "";
+    renderInventoryTable();
+    box.focus();
+});
+document.getElementById("searchScanBtn").addEventListener("click", () => startScan("depotSearch"));
 
 // Ship Pallet is only actionable when the selected depot has ≥1 device staged
 // as Pending Transfer.
@@ -899,7 +1032,7 @@ document.getElementById("addSave").addEventListener("click", async () => {
 // ── Mobile barcode scanning (matches form.js pattern) ─────────────────────
 // Hide scan buttons on desktop
 if (!isMobile) {
-    ["addScanSerialBtn", "addScanAssetBtn", "addScanMercyBtn", "auditScanBtn"].forEach(id => {
+    ["addScanSerialBtn", "addScanAssetBtn", "addScanMercyBtn", "auditScanBtn", "searchScanBtn"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.style.display = "none";
     });

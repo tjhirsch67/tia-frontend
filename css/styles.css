@@ -717,3 +717,78 @@ tbody td {
 .password-toggle:hover {
     color: #2E74B5;
 }
+/* ── Depot tab: search, sortable headers, lease chip ─────────────────────── */
+.depot-search {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.depot-search .input-with-icon { flex: 1; max-width: 420px; }
+.depot-search input {
+    width: 100%;
+    padding: 9px 40px 9px 12px;
+    border: 1px solid #ccd6e0;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    outline: none;
+}
+.depot-search input:focus {
+    border-color: #2E74B5;
+    box-shadow: 0 0 0 3px rgba(46,116,181,0.10);
+}
+
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+th.sortable:hover,
+th.sortable:focus-visible { background: #255f95; outline: none; }
+th.sortable .sort-ind {
+    display: inline-block;
+    width: 1em;
+    margin-left: 4px;
+    font-size: 0.75rem;
+    opacity: 0.45;
+}
+th.sortable .sort-ind::after { content: "\2195"; }          /* ↕ unsorted */
+th.sortable[aria-sort="ascending"] .sort-ind,
+th.sortable[aria-sort="descending"] .sort-ind { opacity: 1; }
+th.sortable[aria-sort="ascending"] .sort-ind::after  { content: "\25B2"; }  /* ▲ */
+th.sortable[aria-sort="descending"] .sort-ind::after { content: "\25BC"; }  /* ▼ */
+
+/* Amber outline, matching the IMS Inventory LEASED chip: present on many rows,
+   so it stays quieter than the filled status badges. */
+.lease-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 12px;
+    border: 1px solid #b9770e;
+    background: #fef5e7;
+    color: #b9770e;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+
+/* ── Help page ───────────────────────────────────────────────────────────── */
+.guide-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+.guide-card {
+    border: 1px solid #dde5ee;
+    border-radius: 8px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fff;
+}
+.guide-card h3 { font-size: 1.05rem; color: #1F4E79; margin: 0; }
+.guide-card p { color: #555; font-size: 0.9rem; line-height: 1.45; margin: 0; }
+.guide-meta { color: #777; font-size: 0.82rem; }
+.guide-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
+.guide-actions .btn { text-decoration: none; }
