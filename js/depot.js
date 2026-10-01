@@ -751,6 +751,10 @@ function openAddDeviceModal() {
     });
     document.getElementById("addStatus").value = "In Stock";
     document.getElementById("addSerialNotice").classList.add("hidden");
+    clearTimeout(identityTimer);
+    identitySeq++;
+    identityMatches = [];
+    renderIdentityNotice();
     document.getElementById("addError").classList.add("hidden");
     document.getElementById("addManufacturerDropdown").classList.add("hidden");
     document.getElementById("addModelDropdown").classList.add("hidden");
@@ -894,7 +898,78 @@ document.getElementById("addSerial").addEventListener("input", () => {
         } else {
             notice.classList.add("hidden");
         }
+        // The serial (and any autofilled asset/MercyID) just settled.
+        scheduleIdentityCheck(0);
     }, 400);
+});
+
+// ── Wrong-label warning (Sep 30 2026) ─────────────────────────────────────
+// Some printers carry two serial labels, and a scan of the wrong one looks
+// like a new device. If the asset tag or MercyID already belongs to another
+// serial, say so. A warning only — Save still works after a confirm.
+let identityTimer = null;
+let identitySeq = 0;
+let identityMatches = [];
+
+function identityFields() {
+    return {
+        serial:    document.getElementById("addSerial").value.trim().toUpperCase(),
+        asset_tag: document.getElementById("addAsset").value.trim().toUpperCase(),
+        mercy_id:  document.getElementById("addMercyId").value.replace(/\s/g, ""),
+    };
+}
+
+function describeIdentityMatch(m) {
+    const what = [m.manufacturer, m.model].filter(Boolean).join(" ");
+    return `${m.serial}` + (what ? ` (${what}, ${m.where})` : ` (${m.where})`);
+}
+
+function renderIdentityNotice() {
+    const el = document.getElementById("addIdentityNotice");
+    el.textContent = "";
+    if (!identityMatches.length) { el.classList.add("hidden"); return; }
+    const f = identityFields();
+    const first = identityMatches[0];
+    const ids = first.matched_on.map(k => k === "asset tag" ? `asset tag ${f.asset_tag}` : `MercyID ${f.mercy_id}`);
+    el.appendChild(document.createTextNode(`⚠ ${ids.join(" and ")} already ${ids.length > 1 ? "belong" : "belongs"} to serial `));
+    const b = document.createElement("b");
+    b.textContent = first.serial;
+    el.appendChild(b);
+    const what = [first.manufacturer, first.model].filter(Boolean).join(" ");
+    el.appendChild(document.createTextNode(
+        ` (${what ? what + ", " : ""}${first.where}). Check you scanned the right serial label — ` +
+        `some printers carry two. If it's the same printer, use that serial.`));
+    if (identityMatches.length > 1) {
+        el.appendChild(document.createTextNode(
+            " Also on: " + identityMatches.slice(1).map(m => m.serial).join(", ") + "."));
+    }
+    el.classList.remove("hidden");
+}
+
+async function runIdentityCheck() {
+    const f = identityFields();
+    const seq = ++identitySeq;
+    if (!f.asset_tag && !f.mercy_id) {
+        identityMatches = [];
+        renderIdentityNotice();
+        return identityMatches;
+    }
+    const qs = new URLSearchParams(f).toString();
+    const res = await Auth.apiCall("GET", `/depot/identity-matches?${qs}`);
+    if (seq !== identitySeq) return identityMatches;          // superseded
+    // A failed check must not invent or keep a warning about other values.
+    identityMatches = (res && res.ok) ? ((await res.json()).matches || []) : [];
+    renderIdentityNotice();
+    return identityMatches;
+}
+
+function scheduleIdentityCheck(delay = 400) {
+    clearTimeout(identityTimer);
+    identityTimer = setTimeout(runIdentityCheck, delay);
+}
+
+["addAsset", "addMercyId"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => scheduleIdentityCheck());
 });
 
 // ── Manufacturer / Model comboboxes ───────────────────────────────────────
@@ -993,6 +1068,18 @@ document.getElementById("addSave").addEventListener("click", async () => {
     if (missing.length) {
         errDiv.textContent = `Missing required fields: ${missing.join(", ")}`;
         errDiv.classList.remove("hidden");
+        return;
+    }
+
+    // Re-check against the values being saved (the debounced check may not
+    // have run yet). Confirm, never block — the tech has the device in hand.
+    clearTimeout(identityTimer);
+    const idMatches = await runIdentityCheck();
+    if (idMatches.length && !confirm(
+            `The asset tag or MercyID already belongs to:\n\n` +
+            idMatches.map(m => "• " + describeIdentityMatch(m)).join("\n") +
+            `\n\nYou may have scanned the wrong serial label. ` +
+            `Add ${payload.serial} as a new device anyway?`)) {
         return;
     }
 
