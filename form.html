@@ -131,21 +131,6 @@
                 </div>
             </div>
 
-            <!-- Shown only for a Removal to CORD (Location = the CORD warehouse):
-                 where the device was pulled from. Location on that path is the
-                 destination, so without this the origin lived only in notes.
-                 Pre-filled from evidence; required. -->
-            <div class="form-group hidden" id="removedFromGroup">
-                <label for="removedFrom">Removed from (Facility) <span class="required">*</span></label>
-                <div class="rf-wrap">
-                    <input type="text" id="removedFrom" placeholder="Search facility, street or city..."
-                           autocomplete="off" aria-describedby="removedFromHint removedFromError">
-                    <div id="removedFromDropdown" class="typeahead-dropdown hidden" role="listbox"></div>
-                </div>
-                <div id="removedFromHint" class="field-notice hidden"></div>
-                <div id="removedFromError" class="field-notice error hidden" role="alert"></div>
-            </div>
-
             <!-- Shown only for a Removal at an EPDS depot: the status the device
                  lands on in that depot's inventory. -->
             <div class="form-group hidden" id="depotStatusGroup">
@@ -186,6 +171,21 @@
                     <label for="room">Room <span class="required">*</span></label>
                     <input type="text" id="room" placeholder="e.g. Room 204, Reception">
                 </div>
+            </div>
+
+            <!-- Shown only for a Removal to CORD (Location = the CORD warehouse):
+                 where the device was pulled from. Location on that path is the
+                 destination, so without this the origin lived only in notes.
+                 Pre-filled from evidence; required. -->
+            <div class="form-group hidden" id="removedFromGroup">
+                <label for="removedFrom">Removed from (Facility) <span class="required">*</span></label>
+                <div class="rf-wrap">
+                    <input type="text" id="removedFrom" placeholder="Search facility, street or city..."
+                           autocomplete="off" aria-describedby="removedFromHint removedFromError">
+                    <div id="removedFromDropdown" class="typeahead-dropdown hidden" role="listbox"></div>
+                </div>
+                <div id="removedFromHint" class="field-notice hidden"></div>
+                <div id="removedFromError" class="field-notice error hidden" role="alert"></div>
             </div>
         </div>
 
