@@ -328,6 +328,214 @@ function updateDepotStatusField() {
     document.getElementById("depotStatusGroup").classList.toggle("hidden", !isRemovalToDepot());
 }
 
+// ── Removed from (Removal to CORD) ────────────────────────────────────────
+// On a Removal to CORD, Location is the destination (the warehouse), so where
+// the device came FROM was only ever whatever the tech remembered to put in
+// Notes — about half the time, nothing. This field asks for it, pre-filled from
+// evidence the server holds (the tech's own install in the last hour, else the
+// device's last known field location), so most techs just confirm it.
+//
+// The value must be a facility picked from the list, or the explicit
+// "Not listed: use what I typed" row. rfChoice records which; any typing
+// clears it, so text that merely looks like a facility is never sent as one.
+let rfChoice = null;          // { facility, unlisted }
+let rfTouched = false;        // the tech typed or picked — never overwrite it
+let rfVisible = false;
+let rfResults = [];           // last search results, for keyboard + exact match
+let rfActive = -1;            // highlighted dropdown row
+let rfSearchTimer = null;
+let rfSearchSeq = 0;
+let rfSuggestSeq = 0;
+
+const rfInput = () => document.getElementById("removedFrom");
+const normSpaces = (s) => (s || "").replace(/\s+/g, " ").trim();
+
+function setRemovedFromHint(text) {
+    const hint = document.getElementById("removedFromHint");
+    hint.textContent = text || "";
+    hint.classList.toggle("hidden", !text);
+}
+
+function clearRemovedFromError() {
+    document.getElementById("removedFromError").classList.add("hidden");
+    rfInput().classList.remove("invalid");
+}
+
+function showRemovedFromError(message) {
+    const err = document.getElementById("removedFromError");
+    err.textContent = message;
+    err.classList.remove("hidden");
+    const input = rfInput();
+    input.classList.add("invalid");
+    // The top-of-page banner is out of sight on a phone by the time the tech
+    // reaches this field, so take them to the field itself. An instant jump,
+    // not a smooth scroll: a smooth scroll can be cut short, and then the tech
+    // is left between the banner and the field seeing neither.
+    input.scrollIntoView({ block: "center" });
+    input.focus({ preventScroll: true });
+}
+
+function hideRemovedFromDropdown() {
+    document.getElementById("removedFromDropdown").classList.add("hidden");
+    rfActive = -1;
+}
+
+function resetRemovedFrom() {
+    rfInput().value = "";
+    rfChoice = null;
+    rfTouched = false;
+    rfResults = [];
+    rfSuggestSeq++;            // drop any suggestion still in flight
+    rfSearchSeq++;
+    clearTimeout(rfSearchTimer);
+    setRemovedFromHint("");
+    clearRemovedFromError();
+    hideRemovedFromDropdown();
+}
+
+function chooseRemovedFrom(facility, unlisted) {
+    rfInput().value = facility;
+    rfChoice = { facility, unlisted };
+    rfTouched = true;
+    hideRemovedFromDropdown();
+    clearRemovedFromError();
+    setRemovedFromHint(unlisted
+        ? "Not in the facility list. It will be saved exactly as typed."
+        : "");
+}
+
+// Shown / hidden with the Removal-to-CORD condition. Becoming visible fetches
+// a suggestion, unless the tech has already filled the field in themselves.
+function updateRemovedFromField() {
+    const show = isRemovalToCord();
+    document.getElementById("removedFromGroup").classList.toggle("hidden", !show);
+    if (show && !rfVisible && !rfTouched) requestRemovedFromSuggestion();
+    if (!show) { hideRemovedFromDropdown(); clearRemovedFromError(); }
+    rfVisible = show;
+}
+
+async function requestRemovedFromSuggestion() {
+    if (rfTouched) return;
+    const seq = ++rfSuggestSeq;
+    const serial = lastLookup.serial || document.getElementById("serial").value.trim();
+    const res = await Auth.apiCall("GET",
+        `/submissions/removed-from-suggestion?serial=${encodeURIComponent(serial)}`);
+    // Stale (a newer request, a reset) or the tech got there first.
+    if (seq !== rfSuggestSeq || rfTouched || !isRemovalToCord()) return;
+    let data = null;
+    if (res && res.ok) {
+        try { data = await res.json(); } catch (e) { data = null; }
+    }
+    if (data && data.facility) {
+        rfInput().value = data.facility;
+        rfChoice = { facility: data.facility, unlisted: false };
+        clearRemovedFromError();
+        setRemovedFromHint(`Suggested: ${data.detail}. Change it if you removed `
+            + "the device somewhere else.");
+    } else {
+        // Nothing to go on (or the call failed). A suggestion made for the
+        // previous serial must not survive into this one.
+        rfInput().value = "";
+        rfChoice = null;
+        setRemovedFromHint("");
+    }
+}
+
+function renderRemovedFromDropdown(typed) {
+    const dropdown = document.getElementById("removedFromDropdown");
+    dropdown.innerHTML = "";
+    rfActive = -1;
+    rfResults.forEach((loc, i) => {
+        const item = document.createElement("div");
+        item.className = "typeahead-item";
+        item.setAttribute("role", "option");
+        item.dataset.index = String(i);
+        const name = document.createElement("div");
+        name.className = "rf-item-name";
+        name.textContent = loc.facility;
+        const addr = document.createElement("div");
+        addr.className = "rf-item-addr";
+        addr.textContent = [loc.street, [loc.city, loc.state].filter(Boolean).join(", ")]
+            .filter(Boolean).join(" · ");
+        item.append(name, addr);
+        item.addEventListener("click", () => chooseRemovedFrom(loc.facility, false));
+        dropdown.appendChild(item);
+    });
+    // Always last, so a site missing from the list never strands the tech.
+    const unlisted = document.createElement("div");
+    unlisted.className = "typeahead-item rf-item-unlisted";
+    unlisted.setAttribute("role", "option");
+    unlisted.dataset.index = String(rfResults.length);
+    unlisted.textContent = `Not listed: use "${typed}"`;
+    unlisted.addEventListener("click", () => chooseRemovedFrom(typed, true));
+    dropdown.appendChild(unlisted);
+    dropdown.classList.remove("hidden");
+}
+
+function highlightRemovedFrom(index) {
+    const items = document.querySelectorAll("#removedFromDropdown .typeahead-item");
+    if (!items.length) return;
+    rfActive = (index + items.length) % items.length;
+    items.forEach((el, i) => el.classList.toggle("active", i === rfActive));
+    items[rfActive].scrollIntoView({ block: "nearest" });
+}
+
+document.getElementById("removedFrom").addEventListener("input", () => {
+    rfTouched = true;
+    rfChoice = null;
+    rfSuggestSeq++;            // a suggestion arriving now must not overwrite typing
+    setRemovedFromHint("");
+    clearRemovedFromError();
+    clearTimeout(rfSearchTimer);
+    const typed = normSpaces(rfInput().value);
+    if (typed.length < 2) { rfResults = []; hideRemovedFromDropdown(); return; }
+    rfSearchTimer = setTimeout(async () => {
+        const seq = ++rfSearchSeq;
+        const res = await Auth.apiCall("GET",
+            `/locations/find?q=${encodeURIComponent(typed)}`
+            + `&exclude=${encodeURIComponent(CORD_LOCATION)}`);
+        if (seq !== rfSearchSeq || normSpaces(rfInput().value) !== typed) return;
+        rfResults = (res && res.ok) ? await res.json() : [];
+        renderRemovedFromDropdown(typed);
+    }, 250);
+});
+
+document.getElementById("removedFrom").addEventListener("keydown", (e) => {
+    const dropdown = document.getElementById("removedFromDropdown");
+    if (dropdown.classList.contains("hidden")) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); highlightRemovedFrom(rfActive + 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); highlightRemovedFrom(rfActive - 1); }
+    else if (e.key === "Escape") { hideRemovedFromDropdown(); }
+    else if (e.key === "Enter" && rfActive >= 0) {
+        e.preventDefault();
+        const items = dropdown.querySelectorAll(".typeahead-item");
+        items[rfActive].click();
+    }
+});
+
+document.addEventListener("click", (e) => {
+    const wrap = document.querySelector("#removedFromGroup .rf-wrap");
+    if (wrap && !wrap.contains(e.target)) hideRemovedFromDropdown();
+});
+
+// Null when the field is fine (or not shown), else the message to show.
+// Typing the exact name of a facility the last search returned counts as
+// picking it, so a tech who types it in full isn't sent back to tap it.
+function removedFromProblem() {
+    if (!isRemovalToCord()) return null;
+    const typed = normSpaces(rfInput().value);
+    if (!typed) {
+        return "Where did you remove this device from? Start typing the facility, "
+            + "street or city, then pick it from the list.";
+    }
+    if (rfChoice && normSpaces(rfChoice.facility).toLowerCase() === typed.toLowerCase()) {
+        return null;
+    }
+    const exact = rfResults.find(l => normSpaces(l.facility).toLowerCase() === typed.toLowerCase());
+    if (exact) { chooseRemovedFrom(exact.facility, false); return null; }
+    return "Pick a facility from the list, or choose \"Not listed\" to use what you typed.";
+}
+
 function updateSubmitGate() {
     // Disable Submit when the backend would reject the submission anyway.
     // Backend 409 is the final guard; this is just UX — but a tech who has
@@ -345,7 +553,9 @@ function updateSubmitGate() {
     btn.disabled = !!(depotBlocked || removalBlocked);
 }
 
-function refreshSerialUi() { updateDepotStatusField(); renderSerialNotice(); updateSubmitGate(); }
+function refreshSerialUi() {
+    updateDepotStatusField(); updateRemovedFromField(); renderSerialNotice(); updateSubmitGate();
+}
 document.getElementById("serviceType").addEventListener("change", refreshSerialUi);
 // The CORD and depot gates depend on the location too, so re-check when it
 // changes. Typing fires these; picking from the typeahead sets the value in
@@ -367,6 +577,8 @@ document.getElementById("serial").addEventListener("input", (e) => {
         notice.classList.add("hidden");
         clearDeviceFields();
         enableComboboxes();
+        // Drop a suggestion that came from the cleared serial's history.
+        if (isRemovalToCord()) requestRemovedFromSuggestion();
         return;
     }
     serialLookupTimeout = setTimeout(async () => {
@@ -427,6 +639,9 @@ document.getElementById("serial").addEventListener("input", (e) => {
 
         renderSerialNotice();
         updateSubmitGate();
+        // The device's own history is part of the Removed-from evidence, so a
+        // new serial re-asks — unless the tech has already set the field.
+        if (isRemovalToCord()) requestRemovedFromSuggestion();
     }, 500);
 });
 
@@ -580,6 +795,16 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         return;
     }
 
+    // Removed from: reported at the field, not just in the banner — on a phone
+    // the banner is a long scroll away from where the tech has to fix it.
+    const rfProblem = removedFromProblem();
+    if (rfProblem) {
+        errorDiv.textContent = rfProblem;
+        errorDiv.classList.remove("hidden");
+        showRemovedFromError(rfProblem);
+        return;
+    }
+
     const btn = document.getElementById("submitBtn");
     btn.disabled = true;
     btn.textContent = "Submitting...";
@@ -622,6 +847,10 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         queue_name: document.getElementById("queueName").value.trim() || null,
         notes: document.getElementById("notes").value.trim() || null,
         depot_status: isRemovalToDepot() ? document.getElementById("depotStatus").value : null,
+        // Always sent, even as null: the backend reads a MISSING key as a tab
+        // opened before this field existed and tells the tech to reload.
+        removed_from: isRemovalToCord() && rfChoice ? rfChoice.facility : null,
+        removed_from_unlisted: !!(isRemovalToCord() && rfChoice && rfChoice.unlisted),
     };
 
     const res = await Auth.apiCall("POST", "/submissions/", payload);
@@ -671,7 +900,9 @@ function clearForm() {
     // Without this the next Service Type / Location change re-renders the
     // notice for the serial that was just submitted.
     lastLookup = { serial: '', cmdbHit: false, notFound: false, sStripped: false };
+    resetRemovedFrom();
     updateDepotStatusField();
+    updateRemovedFromField();
     updateSubmitGate();
     enableComboboxes();
     lockLocationFields();

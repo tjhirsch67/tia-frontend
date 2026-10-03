@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Tech Install Form</title>
     <link rel="stylesheet" href="css/styles.css?v=20260928">
+    <!-- Removed-from field only. Page-scoped so styles.css (and its ?v= on
+         every page) is untouched. -->
+    <style>
+        .rf-wrap { position: relative; }
+        .rf-item-name { font-weight: 600; color: #222; }
+        .rf-item-addr { font-size: 0.80rem; color: #666; margin-top: 2px; }
+        .rf-item-unlisted { color: #2E74B5; font-style: italic; }
+        .typeahead-item.active { background: #eaf2fb; }
+        .form-group input.invalid {
+            border-color: #c0392b;
+            box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12);
+        }
+    </style>
 </head>
 <body>
 
@@ -116,6 +129,21 @@
                     <input type="text" id="address" placeholder="Search street address..." autocomplete="off">
                     <div id="addressDropdown" class="typeahead-dropdown hidden"></div>
                 </div>
+            </div>
+
+            <!-- Shown only for a Removal to CORD (Location = the CORD warehouse):
+                 where the device was pulled from. Location on that path is the
+                 destination, so without this the origin lived only in notes.
+                 Pre-filled from evidence; required. -->
+            <div class="form-group hidden" id="removedFromGroup">
+                <label for="removedFrom">Removed from (Facility) <span class="required">*</span></label>
+                <div class="rf-wrap">
+                    <input type="text" id="removedFrom" placeholder="Search facility, street or city..."
+                           autocomplete="off" aria-describedby="removedFromHint removedFromError">
+                    <div id="removedFromDropdown" class="typeahead-dropdown hidden" role="listbox"></div>
+                </div>
+                <div id="removedFromHint" class="field-notice hidden"></div>
+                <div id="removedFromError" class="field-notice error hidden" role="alert"></div>
             </div>
 
             <!-- Shown only for a Removal at an EPDS depot: the status the device
@@ -242,6 +270,6 @@
 
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
-    <script src="js/form.js?v=20260918"></script>
+    <script src="js/form.js?v=20261002"></script>
 </body>
 </html>
