@@ -22,6 +22,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
         if (btn.dataset.tab === "records") loadRecords();
         if (btn.dataset.tab === "recipients") loadRecipients();
         if (btn.dataset.tab === "settings") loadDepotVisibility();
+        if (btn.dataset.tab === "cmdb") document.getElementById("cdvSerial").focus();
     });
 });
 
@@ -545,3 +546,237 @@ window.deleteRecipient = function(id, email) {
         }
     );
 };
+
+// ── CMDB: Look Up One Device ──────────────────────────────────────────────
+// Server rules live in tia-backend/app/cmdb_device.py (byte-identical to the
+// IMS copy): CMDB and the live inventory row take the values; history only
+// has blanks filled. Mirrors the IMS Admin panel.
+const CDV_PLACEHOLDERS = ["", "NO ASSET", "NO ASSET TAG", "N/A", "NA", "NONE"];
+const CDV_FIELDS = ["asset", "mercy_id", "manufacturer", "model"];
+const CDV_LABELS = { asset: "asset tag", mercy_id: "MercyID", manufacturer: "manufacturer", model: "model" };
+let cdv = null;          // last lookup: { serial, cmdb, records, in_catalog, s_stripped }
+let cdvCatalog = null;   // [{ manufacturer, model }]
+let cdvSeq = 0;
+
+const cdvEsc = v => String(v ?? "").replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const cdvMissing = v => CDV_PLACEHOLDERS.includes(String(v ?? "").trim().toUpperCase());
+const cdvSame = (a, b) => String(a ?? "").trim() === String(b ?? "").trim();
+const cdvKey = v => String(v ?? "").toLowerCase().replace(/\s+/g, "");
+
+// Unlike showMsg, stays until replaced: a save summary is worth reading.
+function cdvShowMsg(text, isError = false) {
+    const el = document.getElementById("cdvMsg");
+    el.className = isError ? "error-message" : "success-message";
+    el.textContent = text;
+}
+function cdvHideMsg() { document.getElementById("cdvMsg").className = "hidden"; }
+
+function cdvValues() {
+    return {
+        asset: document.getElementById("cdvAsset").value.trim().toUpperCase(),
+        mercy_id: document.getElementById("cdvMercy").value.replace(/\s+/g, ""),
+        manufacturer: document.getElementById("cdvMfr").value,
+        model: document.getElementById("cdvModel").value,
+    };
+}
+
+async function cdvLoadCatalog() {
+    if (cdvCatalog) return cdvCatalog;
+    const res = await Auth.apiCall("GET", "/mfr-models/models");
+    if (!res || !res.ok) throw new Error("Could not load the Manufacturer & Model catalog.");
+    cdvCatalog = (await res.json()).map(m => ({ manufacturer: m.manufacturer, model: m.model }));
+    return cdvCatalog;
+}
+
+function cdvSetOptions(sel, values, current) {
+    // A current value missing from the catalog (a pre-existing orphan) is still
+    // offered, labelled, so opening a device never silently changes it.
+    sel.innerHTML = "";
+    const add = (value, label) => {
+        const o = document.createElement("option");
+        o.value = value; o.textContent = label;
+        sel.appendChild(o);
+    };
+    add("", "— choose —");
+    let chosen = "";
+    values.forEach(v => {
+        add(v, v);
+        if (current && cdvKey(v) === cdvKey(current)) chosen = v;
+    });
+    if (current && !chosen) { add(current, `${current} (not in catalog)`); chosen = current; }
+    sel.value = chosen;
+}
+
+function cdvFillModels(current) {
+    const mfr = document.getElementById("cdvMfr").value;
+    const models = cdvCatalog.filter(m => cdvKey(m.manufacturer) === cdvKey(mfr)).map(m => m.model);
+    cdvSetOptions(document.getElementById("cdvModel"), [...new Set(models)].sort(), current);
+}
+
+async function cdvLookup(ev) {
+    if (ev) ev.preventDefault();
+    const input = document.getElementById("cdvSerial");
+    const raw = input.value.trim().toUpperCase();
+    if (!raw) return;
+    const seq = ++cdvSeq;
+    cdvHideMsg();
+    try {
+        const [res] = await Promise.all([
+            Auth.apiCall("GET", "/cmdb/device?serial=" + encodeURIComponent(raw)),
+            cdvLoadCatalog(),
+        ]);
+        if (seq !== cdvSeq || !res) return;   // a newer scan is on its way, or signed out
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { cdvShowMsg(data.detail || "Lookup failed.", true); return; }
+        if (data.s_stripped) input.value = data.serial;
+        cdvRender(data);
+    } catch (e) {
+        if (seq === cdvSeq) cdvShowMsg(e.message || "Lookup failed.", true);
+    }
+}
+
+function cdvRender(data) {
+    cdv = data;
+    document.getElementById("cdvResult").classList.remove("hidden");
+    document.getElementById("cdvDup").classList.add("hidden");
+    cdvReset();
+}
+
+function cdvReset() {
+    if (!cdv) return;
+    // Start from CMDB; with no CMDB row, from the inventory row.
+    const live = cdv.records.find(r => r.live);
+    const start = cdv.cmdb || live || { asset: "", mercy_id: "", manufacturer: "", model: "" };
+    document.getElementById("cdvAsset").value = start.asset || "";
+    document.getElementById("cdvMercy").value = start.mercy_id || "";
+    const mfrs = [...new Set(cdvCatalog.map(m => m.manufacturer))].sort();
+    cdvSetOptions(document.getElementById("cdvMfr"), mfrs, start.manufacturer || "");
+    cdvFillModels(start.model || "");
+
+    const note = cdv.s_stripped ? " (leading S removed)" : "";
+    let status;
+    if (cdv.cmdb) {
+        const when = cdv.cmdb.updated_date ? new Date(cdv.cmdb.updated_date).toLocaleDateString() : "";
+        status = `In CMDB${when ? " · last updated " + when : ""}`;
+        if (!cdv.in_catalog) status += " · its model is not in the catalog";
+    } else if (cdv.records.length) {
+        status = "Not in CMDB — Save creates the row";
+    } else {
+        status = "TIA and IMS have no record of this serial — Save creates a CMDB row";
+    }
+    document.getElementById("cdvHead").innerHTML =
+        `<span class="cdv-serial">${cdvEsc(cdv.serial)}</span>${cdvEsc(note)} · ${cdvEsc(status)}`;
+    cdvPreview();
+}
+
+function cdvPreview(keepDup) {
+    if (!cdv) return;
+    // An edit after a duplicate warning makes that warning (and its Save
+    // anyway) about values no longer on screen.
+    if (!keepDup) document.getElementById("cdvDup").classList.add("hidden");
+    const v = cdvValues();
+    const parts = [];
+    const cmdbChanged = cdv.cmdb ? CDV_FIELDS.filter(f => !cdvSame(v[f], cdv.cmdb[f])) : CDV_FIELDS;
+    if (!cdv.cmdb) parts.push("create the CMDB row");
+    else if (cmdbChanged.length) parts.push("update CMDB (" + cmdbChanged.map(f => CDV_LABELS[f]).join(", ") + ")");
+    const live = cdv.records.find(r => r.live);
+    if (live && CDV_FIELDS.some(f => !cdvSame(v[f], live[f]))) {
+        parts.push(`update the inventory row (${live.detail})`);
+    }
+    const fills = cdv.records.filter(r => r.fills_blanks &&
+        CDV_FIELDS.some(f => cdvMissing(r[f]) && v[f] !== ""));
+    if (fills.length) parts.push(`fill blank fields on ${fills.length} historical record${fills.length === 1 ? "" : "s"}`);
+
+    const el = document.getElementById("cdvPreview");
+    const save = document.getElementById("cdvSave");
+    if (!v.manufacturer || !v.model) {
+        el.className = "cdv-preview cdv-none";
+        el.textContent = "Choose a manufacturer and model to save.";
+        save.disabled = true;
+    } else if (parts.length) {
+        el.className = "cdv-preview";
+        el.textContent = "Saving will " + parts.join(", ") + ".";
+        save.disabled = false;
+    } else {
+        el.className = "cdv-preview cdv-none";
+        el.textContent = "Nothing to save — CMDB, inventory and history already match these values.";
+        save.disabled = true;
+    }
+    cdvRenderRecords(v);
+}
+
+function cdvRenderRecords(v) {
+    const body = document.getElementById("cdvRecords");
+    if (!cdv.records.length) {
+        body.innerHTML = '<tr><td colspan="7" class="cdv-blank">No TIA or IMS records for this serial.</td></tr>';
+        return;
+    }
+    body.innerHTML = cdv.records.map(r => {
+        const cells = CDV_FIELDS.map(f => {
+            if (cdvMissing(r[f])) return `<td class="cdv-blank">${r[f] ? cdvEsc(r[f]) : "—"}</td>`;
+            const differs = v[f] !== "" && !cdvSame(r[f], v[f]);
+            return `<td${differs ? ' class="cdv-diff"' : ""}>${cdvEsc(r[f])}</td>`;
+        }).join("");
+        const tag = r.live ? '<span class="cdv-tag">follows CMDB</span>'
+                  : (r.fills_blanks ? "" : '<span class="cdv-tag">left as is</span>');
+        const date = r.date ? new Date(r.date).toLocaleDateString() : "";
+        return `<tr${r.live ? ' class="cdv-live"' : ""}><td>${cdvEsc(r.label)}${tag}</td>` +
+               `<td>${cdvEsc(date)}</td><td>${cdvEsc(r.detail)}</td>${cells}</tr>`;
+    }).join("");
+}
+
+async function cdvSave(confirmDuplicate) {
+    if (!cdv) return;
+    const v = cdvValues();
+    const save = document.getElementById("cdvSave");
+    save.disabled = true;
+    cdvHideMsg();
+    try {
+        const res = await Auth.apiCall("PUT", "/cmdb/device", {
+            serial: cdv.serial, ...v,
+            expected: cdv.cmdb ? Object.fromEntries(CDV_FIELDS.map(f => [f, cdv.cmdb[f]])) : null,
+            confirm_duplicate: !!confirmDuplicate,
+        });
+        if (!res) return;
+        const data = await res.json().catch(() => ({}));
+        const detail = data.detail;
+        if (res.status === 409 && detail && detail.code === "duplicate") {
+            cdvShowDuplicates(detail);
+            return;
+        }
+        if (!res.ok) {
+            const msg = (detail && detail.message) || (typeof detail === "string" ? detail : "Save failed.");
+            cdvShowMsg(msg, true);
+            return;
+        }
+        cdvRender(data.device);
+        cdvShowMsg("✓ Saved — " + data.summary);
+        const input = document.getElementById("cdvSerial");
+        input.focus(); input.select();
+    } catch (e) {
+        cdvShowMsg("Save failed — check your connection and try again.", true);
+    } finally {
+        cdvPreview(true);
+    }
+}
+
+function cdvShowDuplicates(detail) {
+    const box = document.getElementById("cdvDup");
+    const items = (detail.matches || []).map(m =>
+        `<li><strong>${cdvEsc(m.serial)}</strong> — ${cdvEsc(m.matched_on.join(" and "))} · ${cdvEsc(m.where.join("; "))}</li>`).join("");
+    box.innerHTML = `${cdvEsc(detail.message)}<ul>${items}</ul>` +
+        '<button class="btn btn-secondary btn-sm" type="button" id="cdvSaveAnyway">Save anyway</button>';
+    document.getElementById("cdvSaveAnyway").addEventListener("click", () => cdvSave(true));
+    box.classList.remove("hidden");
+}
+
+document.getElementById("cdvSearch").addEventListener("submit", cdvLookup);
+document.getElementById("cdvAsset").addEventListener("input", () => cdvPreview());
+document.getElementById("cdvMercy").addEventListener("input", () => cdvPreview());
+document.getElementById("cdvMfr").addEventListener("change", () => { cdvFillModels(""); cdvPreview(); });
+document.getElementById("cdvModel").addEventListener("change", () => cdvPreview());
+document.getElementById("cdvSave").addEventListener("click", () => cdvSave(false));
+document.getElementById("cdvReset").addEventListener("click", () => cdvReset());
+// CMDB is the tab TIA's Admin page opens on, so a wedge scan can go straight in.
+document.getElementById("cdvSerial").focus();

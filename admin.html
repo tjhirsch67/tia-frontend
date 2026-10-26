@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TIA - Admin Panel</title>
     <link rel="stylesheet" href="css/styles.css?v=20260928">
+    <style>
+        /* CMDB → Look Up One Device (page-scoped: no styles.css ?v= bump) */
+        .cdv-search { display: flex; gap: 8px; max-width: 520px; }
+        .cdv-search input { flex: 1 1 auto; min-width: 0; padding: 9px 12px; border: 1px solid #ccd6e0;
+                            border-radius: 6px; font-size: 0.95rem; text-transform: uppercase; }
+        .cdv-head { margin: 18px 0 12px; font-size: 0.9rem; color: #666; }
+        .cdv-head .cdv-serial { color: #1F4E79; font-size: 1.05rem; font-weight: 700; margin-right: 6px; }
+        .cdv-preview { margin: 0 0 12px; padding: 10px 14px; border-radius: 6px; background: #eaf2fb; font-size: 0.88rem; }
+        .cdv-preview.cdv-none { background: transparent; padding-left: 0; color: #666; }
+        .cdv-dup { margin: 0 0 12px; padding: 10px 14px; border-radius: 6px; font-size: 0.88rem;
+                   background: #fdf3d8; color: #9a6500; border: 1px solid #ffe082; }
+        .cdv-dup ul { margin: 6px 0 8px 18px; }
+        .cdv-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+        .cdv-sub { font-weight: 700; margin: 4px 0; }
+        .cdv-legend { color: #666; font-size: 0.8rem; margin-bottom: 8px; }
+        .cdv-table td { white-space: nowrap; }
+        .cdv-table td.cdv-diff { background: #fdf3d8; color: #9a6500; font-weight: 600; }
+        .cdv-table td.cdv-blank { color: #888; }
+        .cdv-table tr.cdv-live td:first-child { font-weight: 700; }
+        .cdv-tag { display: inline-block; margin-left: 6px; font-size: 0.72rem; font-weight: 600; color: #888; }
+    </style>
 </head>
 <body>
 
@@ -43,6 +64,57 @@
 
         <!-- ── CMDB Tab ──────────────────────────────────────────────────── -->
         <div id="tab-cmdb" class="tab-content active">
+            <div class="card" id="cmdbDevCard">
+                <div class="card-title">Look Up One Device</div>
+                <p class="tab-desc">Scan or type a serial to see its CMDB row beside every TIA and IMS record for that device. <strong>Save</strong> updates CMDB and the device's inventory row (CORD or depot). Install records, shipments, decommissions, damaged claims and lease returns only have <em>blank</em> fields filled. Values they already hold are kept as recorded.</p>
+                <form class="cdv-search" id="cdvSearch">
+                    <input type="text" id="cdvSerial" placeholder="Scan or type a serial" autocomplete="off" spellcheck="false">
+                    <button class="btn btn-primary" type="submit">Look Up</button>
+                </form>
+                <div id="cdvMsg" class="hidden" style="margin-top:12px;"></div>
+
+                <div id="cdvResult" class="hidden">
+                    <div id="cdvHead" class="cdv-head"></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cdvAsset">Asset Tag</label>
+                            <input type="text" id="cdvAsset" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="cdvMercy">MercyID</label>
+                            <input type="text" id="cdvMercy" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cdvMfr">Manufacturer</label>
+                            <select id="cdvMfr"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cdvModel">Model</label>
+                            <select id="cdvModel"></select>
+                        </div>
+                    </div>
+                    <div id="cdvPreview" class="cdv-preview"></div>
+                    <div id="cdvDup" class="cdv-dup hidden"></div>
+                    <div class="cdv-actions">
+                        <button class="btn btn-primary" id="cdvSave" type="button">Save</button>
+                        <button class="btn btn-secondary" id="cdvReset" type="button">Reset</button>
+                    </div>
+
+                    <div class="cdv-sub">Where this device appears</div>
+                    <p class="cdv-legend">Amber = differs from the values above. The inventory row will take the values above; historical records keep theirs. A dash is a blank that Save will fill.</p>
+                    <div class="table-wrapper">
+                        <table class="cdv-table">
+                            <thead>
+                                <tr><th>Record</th><th>Date</th><th>Detail</th><th>Asset Tag</th><th>MercyID</th><th>Manufacturer</th><th>Model</th></tr>
+                            </thead>
+                            <tbody id="cdvRecords"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-title">CMDB Management</div>
                 <div class="tab-bar-inner">
@@ -362,6 +434,6 @@
     </script>
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
-    <script src="js/admin.js?v=20260523"></script>
+    <script src="js/admin.js?v=20261026"></script>
 </body>
 </html>
