@@ -640,7 +640,95 @@ function cdvRender(data) {
     cdv = data;
     document.getElementById("cdvResult").classList.remove("hidden");
     document.getElementById("cdvDup").classList.add("hidden");
+    document.getElementById("cdvNewSerial").value = "";
+    document.getElementById("cdvRename").open = false;
+    cdvRenameClear();
     cdvReset();
+}
+
+// ── Correct serial (rename) — Check first, then a Rename button that acts on
+// exactly what was checked; the server re-checks before writing.
+let cdvRenameChecked = null;
+
+function cdvRenameClear() {
+    cdvRenameChecked = null;
+    const el = document.getElementById("cdvRenameResult");
+    el.className = "cdv-rename-result hidden"; el.innerHTML = "";
+}
+
+function cdvRenameRefused(message, conflicts) {
+    const el = document.getElementById("cdvRenameResult");
+    el.className = "cdv-rename-result cdv-refused";
+    el.innerHTML = cdvEsc(message) + ((conflicts && conflicts.length)
+        ? "<ul>" + conflicts.map(c => `<li>${cdvEsc(c.label)}</li>`).join("") + "</ul>" : "");
+}
+
+async function cdvRenameCheck(ev) {
+    if (ev) ev.preventDefault();
+    if (!cdv) return;
+    const input = document.getElementById("cdvNewSerial");
+    const raw = input.value;
+    if (!raw.trim()) return;
+    cdvRenameClear();
+    try {
+        const res = await Auth.apiCall("GET", "/cmdb/device/rename-check?serial=" + encodeURIComponent(cdv.serial)
+                                       + "&new_serial=" + encodeURIComponent(raw));
+        if (!res) return;
+        const data = await res.json().catch(() => ({}));
+        if (input.value !== raw) return;          // edited while the check was out
+        if (!res.ok) { cdvRenameRefused(typeof data.detail === "string" ? data.detail : "Check failed."); return; }
+        if (!data.ok) { cdvRenameRefused(data.problem, data.conflicts); return; }
+        cdvRenameChecked = data;
+        const total = data.moves.reduce((n, m) => n + m.count, 0);
+        let lease = "";
+        if (data.new_on_schedule) {
+            const s = data.new_on_schedule;
+            lease += `<p>${cdvEsc(data.new_serial)} is on the master lease schedule (${cdvEsc(s.lease_vendor || "vendor not listed")}` +
+                     `${s.lease_expiration_date ? ", expires " + cdvEsc(s.lease_expiration_date) : ""}). ` +
+                     "An inventory row will be flagged as leased.</p>";
+        } else if (data.old_on_schedule) {
+            lease += `<p>The lease schedule lists the old serial ${cdvEsc(data.serial)}; the schedule itself is not changed.</p>`;
+        }
+        const el = document.getElementById("cdvRenameResult");
+        el.className = "cdv-rename-result";
+        el.innerHTML = `<strong>${cdvEsc(data.serial)} → ${cdvEsc(data.new_serial)}</strong> will be renamed in:` +
+            "<ul>" + data.moves.map(m => `<li>${cdvEsc(m.label)}</li>`).join("") + "</ul>" + lease +
+            `<button class="btn btn-primary btn-sm" type="button" id="cdvRenameBtn">` +
+            `Rename ${total} record${total === 1 ? "" : "s"} to ${cdvEsc(data.new_serial)}</button>`;
+        document.getElementById("cdvRenameBtn").addEventListener("click", () => cdvConfirmRename());
+    } catch (e) {
+        cdvRenameRefused("Check failed — check your connection and try again.");
+    }
+}
+
+function cdvConfirmRename() {
+    const chk = cdvRenameChecked;
+    if (!chk || !cdv) return;
+    showConfirm("Correct Serial",
+        `Rename ${chk.serial} to ${chk.new_serial} in every TIA and IMS record? The old serial stays on the Device Timeline.`,
+        () => cdvRename(chk));
+}
+
+async function cdvRename(chk) {
+    const btn = document.getElementById("cdvRenameBtn");
+    if (btn) btn.disabled = true;
+    try {
+        const res = await Auth.apiCall("POST", "/cmdb/device/rename", { serial: chk.serial, new_serial: chk.new_serial });
+        if (!res) return;
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const d = data.detail;
+            cdvRenameChecked = null;
+            cdvRenameRefused((d && d.message) || (typeof d === "string" ? d : "Rename failed."), d && d.conflicts);
+            return;
+        }
+        document.getElementById("cdvSerial").value = data.serial;
+        cdvRender(data.device);
+        cdvShowMsg("✓ " + data.summary);
+    } catch (e) {
+        if (btn) btn.disabled = false;
+        cdvRenameRefused("Rename failed — check your connection and try again.");
+    }
 }
 
 function cdvReset() {
@@ -778,5 +866,7 @@ document.getElementById("cdvMfr").addEventListener("change", () => { cdvFillMode
 document.getElementById("cdvModel").addEventListener("change", () => cdvPreview());
 document.getElementById("cdvSave").addEventListener("click", () => cdvSave(false));
 document.getElementById("cdvReset").addEventListener("click", () => cdvReset());
+document.getElementById("cdvRenameForm").addEventListener("submit", cdvRenameCheck);
+document.getElementById("cdvNewSerial").addEventListener("input", () => cdvRenameClear());
 // CMDB is the tab TIA's Admin page opens on, so a wedge scan can go straight in.
 document.getElementById("cdvSerial").focus();

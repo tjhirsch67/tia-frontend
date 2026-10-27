@@ -25,6 +25,11 @@
         .cdv-table td.cdv-blank { color: #888; }
         .cdv-table tr.cdv-live td:first-child { font-weight: 700; }
         .cdv-tag { display: inline-block; margin-left: 6px; font-size: 0.72rem; font-weight: 600; color: #888; }
+        .cdv-rename { margin: -8px 0 20px; }
+        .cdv-rename summary { cursor: pointer; font-weight: 600; color: #1F4E79; font-size: 0.9rem; margin-bottom: 8px; }
+        .cdv-rename-result { margin-top: 10px; padding: 10px 14px; border-radius: 6px; font-size: 0.88rem; background: #eaf2fb; }
+        .cdv-rename-result.cdv-refused { background: #fdf3d8; color: #9a6500; border: 1px solid #ffe082; }
+        .cdv-rename-result ul { margin: 6px 0 8px 18px; }
     </style>
 </head>
 <body>
@@ -101,6 +106,16 @@
                         <button class="btn btn-primary" id="cdvSave" type="button">Save</button>
                         <button class="btn btn-secondary" id="cdvReset" type="button">Reset</button>
                     </div>
+
+                    <details class="cdv-rename" id="cdvRename">
+                        <summary>Serial is wrong? Correct it</summary>
+                        <p class="cdv-legend">Renames this serial in every TIA and IMS record: CMDB, inventory, install records, shipments, decommissions, damaged claims, lease returns, Timeline and warehouse moves. Only allowed when the correct serial isn't already recorded anywhere. If it is, the device has two identities and needs a merge instead. The master lease schedule is not changed.</p>
+                        <form class="cdv-search" id="cdvRenameForm">
+                            <input type="text" id="cdvNewSerial" placeholder="Correct serial" autocomplete="off" spellcheck="false">
+                            <button class="btn btn-secondary" type="submit">Check</button>
+                        </form>
+                        <div id="cdvRenameResult" class="cdv-rename-result hidden"></div>
+                    </details>
 
                     <div class="cdv-sub">Where this device appears</div>
                     <p class="cdv-legend">Amber = differs from the values above. The inventory row will take the values above; historical records keep theirs. A dash is a blank that Save will fill.</p>
@@ -434,6 +449,6 @@
     </script>
     <script src="js/config.js?v=20260523"></script>
     <script src="js/auth.js?v=20260523"></script>
-    <script src="js/admin.js?v=20261026"></script>
+    <script src="js/admin.js?v=20261026b"></script>
 </body>
 </html>
