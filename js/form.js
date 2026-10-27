@@ -328,10 +328,10 @@ function updateDepotStatusField() {
     document.getElementById("depotStatusGroup").classList.toggle("hidden", !isRemovalToDepot());
 }
 
-// ── Removed from (Removal to CORD) ────────────────────────────────────────
-// On a Removal to CORD, Location is the destination (the warehouse), so where
-// the device came FROM was only ever whatever the tech remembered to put in
-// Notes — about half the time, nothing. This field asks for it, pre-filled from
+// ── Removed from (Removal to CORD or to a depot) ──────────────────────────
+// On a Removal to CORD or to an EPDS depot, Location is the destination, so
+// where the device came FROM was only ever whatever the tech remembered to put
+// in Notes — about half the time for CORD, 27 of 30 depot Removals, nothing. This field asks for it, pre-filled from
 // evidence the server holds (the tech's own install in the last hour, else the
 // device's last known field location), so most techs just confirm it.
 //
@@ -404,10 +404,16 @@ function chooseRemovedFrom(facility, unlisted) {
         : "");
 }
 
-// Shown / hidden with the Removal-to-CORD condition. Becoming visible fetches
-// a suggestion, unless the tech has already filled the field in themselves.
+// True when the Removed-from field applies: a Removal whose Location is the
+// destination (CORD or a depot) rather than where the device was.
+function needsRemovedFrom() {
+    return isRemovalToCord() || isRemovalToDepot();
+}
+
+// Shown / hidden with needsRemovedFrom(). Becoming visible fetches a
+// suggestion, unless the tech has already filled the field in themselves.
 function updateRemovedFromField() {
-    const show = isRemovalToCord();
+    const show = needsRemovedFrom();
     document.getElementById("removedFromGroup").classList.toggle("hidden", !show);
     if (show && !rfVisible && !rfTouched) requestRemovedFromSuggestion();
     if (!show) { hideRemovedFromDropdown(); clearRemovedFromError(); }
@@ -421,7 +427,7 @@ async function requestRemovedFromSuggestion() {
     const res = await Auth.apiCall("GET",
         `/submissions/removed-from-suggestion?serial=${encodeURIComponent(serial)}`);
     // Stale (a newer request, a reset) or the tech got there first.
-    if (seq !== rfSuggestSeq || rfTouched || !isRemovalToCord()) return;
+    if (seq !== rfSuggestSeq || rfTouched || !needsRemovedFrom()) return;
     let data = null;
     if (res && res.ok) {
         try { data = await res.json(); } catch (e) { data = null; }
@@ -522,7 +528,7 @@ document.addEventListener("click", (e) => {
 // Typing the exact name of a facility the last search returned counts as
 // picking it, so a tech who types it in full isn't sent back to tap it.
 function removedFromProblem() {
-    if (!isRemovalToCord()) return null;
+    if (!needsRemovedFrom()) return null;
     const typed = normSpaces(rfInput().value);
     if (!typed) {
         return "Where did you remove this device from? Start typing the facility, "
@@ -578,7 +584,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
         clearDeviceFields();
         enableComboboxes();
         // Drop a suggestion that came from the cleared serial's history.
-        if (isRemovalToCord()) requestRemovedFromSuggestion();
+        if (needsRemovedFrom()) requestRemovedFromSuggestion();
         return;
     }
     serialLookupTimeout = setTimeout(async () => {
@@ -641,7 +647,7 @@ document.getElementById("serial").addEventListener("input", (e) => {
         updateSubmitGate();
         // The device's own history is part of the Removed-from evidence, so a
         // new serial re-asks — unless the tech has already set the field.
-        if (isRemovalToCord()) requestRemovedFromSuggestion();
+        if (needsRemovedFrom()) requestRemovedFromSuggestion();
     }, 500);
 });
 
@@ -849,8 +855,12 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
         depot_status: isRemovalToDepot() ? document.getElementById("depotStatus").value : null,
         // Always sent, even as null: the backend reads a MISSING key as a tab
         // opened before this field existed and tells the tech to reload.
-        removed_from: isRemovalToCord() && rfChoice ? rfChoice.facility : null,
-        removed_from_unlisted: !!(isRemovalToCord() && rfChoice && rfChoice.unlisted),
+        removed_from: needsRemovedFrom() && rfChoice ? rfChoice.facility : null,
+        removed_from_unlisted: !!(needsRemovedFrom() && rfChoice && rfChoice.unlisted),
+        // 2 = this form shows Removed from on a depot Removal too. The backend
+        // tells a tab opened before that (which sends removed_from as null on
+        // the depot path) to reload, rather than to fill in a hidden field.
+        form_version: 2,
     };
 
     const res = await Auth.apiCall("POST", "/submissions/", payload);
