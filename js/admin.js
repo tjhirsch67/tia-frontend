@@ -556,6 +556,7 @@ const CDV_FIELDS = ["asset", "mercy_id", "manufacturer", "model"];
 const CDV_LABELS = { asset: "asset tag", mercy_id: "MercyID", manufacturer: "manufacturer", model: "model" };
 let cdv = null;          // last lookup: { serial, cmdb, records, in_catalog, s_stripped }
 let cdvCatalog = null;   // [{ manufacturer, model }]
+let cdvStart = null;     // the form's values as the lookup loaded them (Undo changes)
 let cdvSeq = 0;
 
 const cdvEsc = v => String(v ?? "").replace(/[&<>"']/g,
@@ -710,12 +711,14 @@ function cdvConfirmRename() {
 }
 
 async function cdvRename(chk) {
+    const mine = cdv;
     const btn = document.getElementById("cdvRenameBtn");
     if (btn) btn.disabled = true;
     try {
         const res = await Auth.apiCall("POST", "/cmdb/device/rename", { serial: chk.serial, new_serial: chk.new_serial });
         if (!res) return;
         const data = await res.json().catch(() => ({}));
+        if (cdv !== mine) return;            // cleared or another device opened meanwhile
         if (!res.ok) {
             const d = data.detail;
             cdvRenameChecked = null;
@@ -755,7 +758,26 @@ function cdvReset() {
     }
     document.getElementById("cdvHead").innerHTML =
         `<span class="cdv-serial">${cdvEsc(cdv.serial)}</span>${cdvEsc(note)} · ${cdvEsc(status)}`;
+    cdvStart = cdvValues();
     cdvPreview();
+}
+
+// Back to an empty lookup, ready for the next scan. Bumping cdvSeq drops a
+// lookup still on its way.
+function cdvClear() {
+    cdvSeq++;
+    cdv = null; cdvStart = null;
+    cdvHideMsg();
+    cdvRenameClear();
+    document.getElementById("cdvResult").classList.add("hidden");
+    document.getElementById("cdvDup").classList.add("hidden");
+    document.getElementById("cdvRename").open = false;
+    ["cdvNewSerial", "cdvAsset", "cdvMercy"].forEach(id => { document.getElementById(id).value = ""; });
+    ["cdvHead", "cdvPreview", "cdvRecords"].forEach(id => { document.getElementById(id).innerHTML = ""; });
+    document.getElementById("cdvReset").disabled = true;
+    const input = document.getElementById("cdvSerial");
+    input.value = "";
+    input.focus();
 }
 
 function cdvPreview(keepDup) {
@@ -791,6 +813,8 @@ function cdvPreview(keepDup) {
         el.textContent = "Nothing to save — CMDB, inventory and history already match these values.";
         save.disabled = true;
     }
+    document.getElementById("cdvReset").disabled =
+        !cdvStart || CDV_FIELDS.every(f => cdvSame(v[f], cdvStart[f]));
     cdvRenderRecords(v);
 }
 
@@ -816,6 +840,7 @@ function cdvRenderRecords(v) {
 
 async function cdvSave(confirmDuplicate) {
     if (!cdv) return;
+    const mine = cdv;
     const v = cdvValues();
     const save = document.getElementById("cdvSave");
     save.disabled = true;
@@ -828,6 +853,7 @@ async function cdvSave(confirmDuplicate) {
         });
         if (!res) return;
         const data = await res.json().catch(() => ({}));
+        if (cdv !== mine) return;            // cleared or another device opened meanwhile
         const detail = data.detail;
         if (res.status === 409 && detail && detail.code === "duplicate") {
             cdvShowDuplicates(detail);
@@ -843,9 +869,9 @@ async function cdvSave(confirmDuplicate) {
         const input = document.getElementById("cdvSerial");
         input.focus(); input.select();
     } catch (e) {
-        cdvShowMsg("Save failed — check your connection and try again.", true);
+        if (cdv === mine) cdvShowMsg("Save failed — check your connection and try again.", true);
     } finally {
-        cdvPreview(true);
+        if (cdv === mine) cdvPreview(true);
     }
 }
 
@@ -866,6 +892,7 @@ document.getElementById("cdvMfr").addEventListener("change", () => { cdvFillMode
 document.getElementById("cdvModel").addEventListener("change", () => cdvPreview());
 document.getElementById("cdvSave").addEventListener("click", () => cdvSave(false));
 document.getElementById("cdvReset").addEventListener("click", () => cdvReset());
+document.getElementById("cdvClear").addEventListener("click", () => cdvClear());
 document.getElementById("cdvRenameForm").addEventListener("submit", cdvRenameCheck);
 document.getElementById("cdvNewSerial").addEventListener("input", () => cdvRenameClear());
 // CMDB is the tab TIA's Admin page opens on, so a wedge scan can go straight in.
